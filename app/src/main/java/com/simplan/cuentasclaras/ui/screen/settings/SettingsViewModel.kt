@@ -1,0 +1,130 @@
+package com.simplan.cuentasclaras.ui.screen.settings
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.simplan.cuentasclaras.common.Result
+import com.simplan.cuentasclaras.domain.entity.QuickAmount
+import com.simplan.cuentasclaras.domain.entity.Settings
+import com.simplan.cuentasclaras.domain.usecase.quickamount.QuickAmountUseCases
+import com.simplan.cuentasclaras.domain.usecase.settings.SettingsUseCases
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
+    private val settingsUseCases: SettingsUseCases,
+    private val quickAmountUseCases: QuickAmountUseCases
+) : ViewModel() {
+
+    private val _settings = MutableStateFlow<Settings?>(null)
+    val settings = _settings.asStateFlow()
+
+    private val _quickAmounts = MutableStateFlow<List<QuickAmount>>(emptyList())
+    val quickAmounts = _quickAmounts.asStateFlow()
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading = _isLoading.asStateFlow()
+
+    private val _error = MutableStateFlow<String?>(null)
+    val error = _error.asStateFlow()
+
+    private val _showQuickAmounts = MutableStateFlow(false)
+    val showQuickAmounts = _showQuickAmounts.asStateFlow()
+
+    init {
+        loadSettings()
+        loadQuickAmounts()
+    }
+
+    private fun loadSettings() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            val result = settingsUseCases.getSettings()
+            if (result.isSuccess()) {
+                _settings.value = result.getOrNull()
+            }
+            _isLoading.value = false
+        }
+    }
+
+    private fun loadQuickAmounts() {
+        viewModelScope.launch {
+            val result = quickAmountUseCases.getAll()
+            if (result.isSuccess()) {
+                _quickAmounts.value = result.getOrNull() ?: emptyList()
+            }
+        }
+    }
+
+    suspend fun saveSettings(settings: Settings): Result<Unit> {
+        _isLoading.value = true
+        val result = settingsUseCases.saveSettings(settings)
+        if (result.isError()) {
+            _error.value = result.errorMessage ?: "Error al guardar ajustes"
+        }
+        _isLoading.value = false
+        return result
+    }
+
+    suspend fun addQuickAmount(amount: QuickAmount): Result<Long> {
+        _isLoading.value = true
+        val result = quickAmountUseCases.insert(amount)
+        if (result.isSuccess()) {
+            loadQuickAmounts()
+        } else {
+            _error.value = result.errorMessage ?: "Error al agregar monto rápido"
+        }
+        _isLoading.value = false
+        return result
+    }
+
+    suspend fun updateQuickAmount(amount: QuickAmount): Result<Unit> {
+        _isLoading.value = true
+        val result = quickAmountUseCases.update(amount)
+        if (result.isSuccess()) {
+            loadQuickAmounts()
+        } else {
+            _error.value = result.errorMessage ?: "Error al actualizar monto rápido"
+        }
+        _isLoading.value = false
+        return result
+    }
+
+    suspend fun deleteQuickAmount(id: Long): Result<Unit> {
+        _isLoading.value = true
+        val result = quickAmountUseCases.delete(id)
+        if (result.isSuccess()) {
+            loadQuickAmounts()
+        } else {
+            _error.value = result.errorMessage ?: "Error al eliminar monto rápido"
+        }
+        _isLoading.value = false
+        return result
+    }
+
+    suspend fun reorderQuickAmounts(ids: List<Long>): Result<Unit> {
+        _isLoading.value = true
+        val result = quickAmountUseCases.reorder(ids)
+        if (result.isSuccess()) {
+            loadQuickAmounts()
+        } else {
+            _error.value = result.errorMessage ?: "Error al reordenar"
+        }
+        _isLoading.value = false
+        return result
+    }
+
+    fun toggleQuickAmounts() {
+        _showQuickAmounts.value = !_showQuickAmounts.value
+    }
+
+    fun clearError() {
+        _error.value = null
+    }
+}
