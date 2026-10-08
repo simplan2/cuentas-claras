@@ -10,18 +10,25 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -29,6 +36,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,7 +44,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -69,6 +76,8 @@ fun HomeScreen(
     val isIncome by viewModel.isIncome.collectAsStateWithLifecycle(true)
 
     val scope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refresh() }
 
@@ -91,9 +100,10 @@ fun HomeScreen(
                     IconButton(onClick = onNavigateToAccountManager) {
                         Icon(Icons.swapHoriz(), contentDescription = "Administrar cuentas")
                     }
-                }
+}
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Box(
             modifier = Modifier
@@ -104,6 +114,7 @@ fun HomeScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .verticalScroll(scrollState)
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -165,13 +176,13 @@ fun HomeScreen(
                                     Icon(
                                         imageVector = Icons.trendingUp(),
                                         contentDescription = "Ingresos",
-                                        tint = Color.Green
+                                        tint = MaterialTheme.colorScheme.primary
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = formattedIncome,
                                         fontSize = 14.sp,
-                                        color = Color.Green,
+                                        color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.Bold
                                     )
                                     Text(
@@ -184,13 +195,13 @@ fun HomeScreen(
                                     Icon(
                                         imageVector = Icons.trendingDown(),
                                         contentDescription = "Gastos",
-                                        tint = Color.Red
+                                        tint = MaterialTheme.colorScheme.error
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = formattedExpense,
                                         fontSize = 14.sp,
-                                        color = Color.Red,
+                                        color = MaterialTheme.colorScheme.error,
                                         fontWeight = FontWeight.Bold
                                     )
                                     Text(
@@ -224,11 +235,14 @@ fun HomeScreen(
                                 checked = isIncome,
                                 onCheckedChange = { viewModel.setIsIncome(it) },
                                 colors = SwitchDefaults.colors(
-                                    checkedThumbColor = if (isIncome) Color.Green else Color.Red,
-                                    checkedTrackColor = if (isIncome)
-                                        Color.Green.copy(alpha = 0.3f)
+                                    checkedThumbColor = if (isIncome)
+                                        MaterialTheme.colorScheme.primary
                                     else
-                                        Color.Red.copy(alpha = 0.3f)
+                                        MaterialTheme.colorScheme.error,
+                                    checkedTrackColor = if (isIncome)
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                                    else
+                                        MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
                                 )
                             )
                         }
@@ -262,58 +276,51 @@ fun HomeScreen(
                         )
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        Text(
+Text(
                             text = "Montos rápidos:",
-                            fontSize = 12.sp,
+                            fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // Normalizamos la lista de montos rápidos para evitar duplicados
-                        val defaultAmounts = listOf(500L, 1000L, 2000L, 5000L)
+                        // Configurados en Ajustes + valores por defecto (sin duplicados por monto)
                         val quickCents = quickAmounts.map { it.amountCents }.toSet()
-                        val extraDefaults = defaultAmounts.filter { it !in quickCents }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            quickAmounts.forEach { qa ->
-                                val qaFormatted = Money.format(qa.amountCents, currency)
-                                Button(
-                                    onClick = { viewModel.onQuickAmountClick(qa.amountCents) },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(40.dp),
-                                    contentPadding = ButtonDefaults.ContentPadding,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                        contentColor = MaterialTheme.colorScheme.onSurface
-                                    )
-                                ) {
-                                    Text(
-                                        text = qa.label.ifEmpty { qaFormatted },
-                                        fontSize = 12.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
+                        val extraDefaults = listOf(500L, 1000L, 2000L, 5000L)
+                            .filter { it !in quickCents }
+                            .map { amountCents ->
+                                com.simplan.cuentasclaras.domain.entity.QuickAmount(
+                                    label = "",
+                                    amountCents = amountCents,
+                                    isEnabled = true
+                                )
                             }
-                            extraDefaults.forEach { amountCents ->
-                                val formatted = Money.format(amountCents, currency)
-                                Button(
-                                    onClick = { viewModel.onQuickAmountClick(amountCents) },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(40.dp),
-                                    contentPadding = ButtonDefaults.ContentPadding,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                        contentColor = MaterialTheme.colorScheme.onSurface
-                                    )
+                        val shownAmounts = quickAmounts + extraDefaults
+
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            shownAmounts.chunked(2).forEach { chunk ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text(formatted, fontSize = 12.sp, maxLines = 1)
+                                    chunk.forEach { qa ->
+                                        val qaFormatted =
+                                            Money.format(qa.amountCents, currency)
+                                        SuggestionChip(
+                                            onClick = { viewModel.onQuickAmountClick(qa.amountCents) },
+                                            label = {
+                                                Text(
+                                                    text = qa.label.ifEmpty { qaFormatted },
+                                                    fontSize = 13.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -323,27 +330,45 @@ fun HomeScreen(
                             onClick = {
                                 if (!isLoading) {
                                     scope.launch {
-                                        viewModel.addEntry()
-                                        // Si addEntry() devuelve Result<*>, puedes hacer:
-                                        // val result = viewModel.addEntry()
-                                        // if (result.isFailure) { /* opcional */ }
+                                        val result = viewModel.addEntry()
+                                        if (result.isError()) {
+                                            snackbarHostState.showSnackbar(
+                                                result.errorMessage
+                                                    ?: "No se pudo guardar el movimiento"
+                                            )
+                                        }
                                     }
                                 }
                             },
-                            enabled = !isLoading &&
-                                    amountText.trim().isNotEmpty() &&
-                                    conceptText.trim().isNotEmpty(),
+                            enabled = !isLoading,
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isIncome) Color.Green else Color.Red,
-                                contentColor = Color.White
+                                containerColor = if (isIncome)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.error,
+                                contentColor = if (isIncome)
+                                    MaterialTheme.colorScheme.onPrimary
+                                else
+                                    MaterialTheme.colorScheme.onError
                             )
                         ) {
-                            Text(
-                                text = if (isIncome) "Agregar ingreso" else "Registrar gasto",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = if (isIncome)
+                                        MaterialTheme.colorScheme.onPrimary
+                                    else
+                                        MaterialTheme.colorScheme.onError
+                                )
+                            } else {
+                                Text(
+                                    text = if (isIncome) "Agregar ingreso" else "Registrar gasto",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
