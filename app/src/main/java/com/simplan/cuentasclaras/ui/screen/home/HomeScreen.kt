@@ -41,6 +41,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.simplan.cuentasclaras.common.Currency
 import com.simplan.cuentasclaras.common.Money
@@ -52,6 +54,7 @@ import kotlinx.coroutines.launch
 fun HomeScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToAccountManager: () -> Unit,
+    onNavigateToAccountDetail: (Long) -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val account by viewModel.account.collectAsStateWithLifecycle()
@@ -66,6 +69,8 @@ fun HomeScreen(
     val isIncome by viewModel.isIncome.collectAsStateWithLifecycle(true)
 
     val scope = rememberCoroutineScope()
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refresh() }
 
     val currency = account?.currency ?: Currency.PEN
     val formattedTotal = Money.format(total, currency)
@@ -105,6 +110,7 @@ fun HomeScreen(
                 // ---------- Tarjeta resumen de cuenta ----------
                 account?.let { acc ->
                     Card(
+                        onClick = { onNavigateToAccountDetail(acc.id) },
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.primaryContainer
@@ -116,7 +122,10 @@ fun HomeScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
                                     Icon(
                                         imageVector = Icons.accountBalanceWallet(),
                                         contentDescription = "Cuenta",
@@ -127,15 +136,25 @@ fun HomeScreen(
                                         text = acc.name,
                                         fontSize = 20.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
-                                Text(
-                                    text = formattedTotal,
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = formattedTotal,
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = Icons.chevronRight(),
+                                        contentDescription = "Administrar cuenta",
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
                             }
                             Spacer(modifier = Modifier.height(16.dp))
                             Row(
@@ -245,7 +264,7 @@ fun HomeScreen(
 
                         Text(
                             text = "Montos rápidos:",
-                            fontSize = 14.sp,
+                            fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(8.dp))

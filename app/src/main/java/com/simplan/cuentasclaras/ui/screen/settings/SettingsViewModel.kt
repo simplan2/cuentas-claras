@@ -6,6 +6,7 @@ import com.simplan.cuentasclaras.common.Result
 import com.simplan.cuentasclaras.domain.entity.QuickAmount
 import com.simplan.cuentasclaras.domain.entity.Settings
 import com.simplan.cuentasclaras.domain.usecase.quickamount.QuickAmountUseCases
+import com.simplan.cuentasclaras.domain.usecase.lock.LockUseCases
 import com.simplan.cuentasclaras.domain.usecase.settings.SettingsUseCases
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,11 +20,21 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsUseCases: SettingsUseCases,
-    private val quickAmountUseCases: QuickAmountUseCases
+    private val quickAmountUseCases: QuickAmountUseCases,
+    private val lockUseCases: LockUseCases
 ) : ViewModel() {
 
     private val _settings = MutableStateFlow<Settings?>(null)
     val settings = _settings.asStateFlow()
+
+    private val _hasPin = MutableStateFlow(false)
+    val hasPin = _hasPin.asStateFlow()
+
+    private val _biometricAvailable = MutableStateFlow(false)
+    val biometricAvailable = _biometricAvailable.asStateFlow()
+
+    private val _biometricEnabled = MutableStateFlow(false)
+    val biometricEnabled = _biometricEnabled.asStateFlow()
 
     private val _quickAmounts = MutableStateFlow<List<QuickAmount>>(emptyList())
     val quickAmounts = _quickAmounts.asStateFlow()
@@ -40,6 +51,60 @@ class SettingsViewModel @Inject constructor(
     init {
         loadSettings()
         loadQuickAmounts()
+        loadPinState()
+    }
+
+    private fun loadPinState() {
+        viewModelScope.launch {
+            val hasPinResult = lockUseCases.hasPin()
+            if (hasPinResult.isSuccess()) {
+                _hasPin.value = hasPinResult.getOrNull() == true
+            }
+            val availableResult = lockUseCases.isBiometricAvailable()
+            if (availableResult.isSuccess()) {
+                _biometricAvailable.value = availableResult.getOrNull() == true
+            }
+            val enabledResult = lockUseCases.isBiometricEnabled()
+            if (enabledResult.isSuccess()) {
+                _biometricEnabled.value = enabledResult.getOrNull() == true
+            }
+        }
+    }
+
+    suspend fun setBiometricEnabled(enabled: Boolean): Result<Unit> {
+        _isLoading.value = true
+        val result = lockUseCases.setBiometricEnabled(enabled)
+        _isLoading.value = false
+        if (result.isError()) {
+            _error.value = result.errorMessage ?: "Error al guardar la configuración"
+        } else {
+            loadPinState()
+        }
+        return result
+    }
+
+    suspend fun setPin(pin: String): Result<Unit> {
+        _isLoading.value = true
+        val result = lockUseCases.setPin(pin)
+        _isLoading.value = false
+        if (result.isError()) {
+            _error.value = result.errorMessage ?: "Error al guardar el PIN"
+        } else {
+            loadPinState()
+        }
+        return result
+    }
+
+    suspend fun removePin(): Result<Unit> {
+        _isLoading.value = true
+        val result = lockUseCases.clearPin()
+        _isLoading.value = false
+        if (result.isError()) {
+            _error.value = result.errorMessage ?: "Error al eliminar el PIN"
+        } else {
+            loadPinState()
+        }
+        return result
     }
 
     private fun loadSettings() {
@@ -65,11 +130,19 @@ class SettingsViewModel @Inject constructor(
     suspend fun saveSettings(settings: Settings): Result<Unit> {
         _isLoading.value = true
         val result = settingsUseCases.saveSettings(settings)
-        if (result.isError()) {
+        if (result.isSuccess()) {
+            _settings.value = settings
+        } else {
             _error.value = result.errorMessage ?: "Error al guardar ajustes"
         }
         _isLoading.value = false
         return result
+    }
+
+    suspend fun updateMaxOpenAccounts(value: Int): Result<Unit> {
+        val current = _settings.value
+        if (current == null) return Result.success(Unit)
+        return saveSettings(current.copyWith(maxOpenAccounts = value.coerceAtLeast(1)))
     }
 
     suspend fun addQuickAmount(amount: QuickAmount): Result<Long> {

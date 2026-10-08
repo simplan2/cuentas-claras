@@ -1,7 +1,6 @@
 package com.simplan.cuentasclaras.domain.entity
 
 import kotlinx.serialization.Serializable
-import java.time.Instant
 
 @Serializable
 data class QuickAmount(
@@ -12,7 +11,7 @@ data class QuickAmount(
     val color: Long = 0xFF4CAF50.toLong(),
     val sortOrder: Int = 0,
     val isEnabled: Boolean = true,
-    val createdAt: Long = Instant.now().toEpochMilli()
+    val createdAt: Long = System.currentTimeMillis()
 ) {
     fun copyWith(
         amountCents: Long = this.amountCents,

@@ -88,6 +88,26 @@ class LockRepositoryImpl(
         .map { Result.success(it?.isLocked ?: false) }
         .catch { emit(Result.error(it)) }
 
+    override suspend fun hasPin(): Result<Boolean> = try {
+        val entity = lockDao.getSuspend()
+        Result.success(entity?.pinHash?.isNotEmpty() == true)
+    } catch (e: Exception) {
+        Result.error(e)
+    }
+
+    override suspend fun getPinLength(): Result<Int> = try {
+        val entity = lockDao.getSuspend()
+        val encryptedPin = entity?.pinHash.orEmpty()
+        if (encryptedPin.isEmpty()) {
+            Result.success(0)
+        } else {
+            val pin = decryptPin(encryptedPin)
+            Result.success(pin?.length ?: 0)
+        }
+    } catch (e: Exception) {
+        Result.error(e)
+    }
+
     override suspend fun lock(): Result<Unit> = try {
         val entity = lockDao.getSuspend() ?: LockEntity()
         lockDao.update(entity.copy(isLocked = true))
@@ -129,7 +149,14 @@ class LockRepositoryImpl(
 
     override suspend fun clearPin(): Result<Unit> = try {
         val entity = lockDao.getSuspend() ?: LockEntity()
-        lockDao.update(entity.copy(pinHash = "", biometricEnabled = false))
+        lockDao.update(
+            entity.copy(
+                pinHash = "",
+                biometricEnabled = false,
+                isLocked = false,
+                failedAttempts = 0
+            )
+        )
         Result.success(Unit)
     } catch (e: Exception) {
         Result.error(e)
@@ -141,6 +168,13 @@ class LockRepositoryImpl(
             BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
         ) == BiometricManager.BIOMETRIC_SUCCESS
         Result.success(canAuthenticate)
+    } catch (e: Exception) {
+        Result.error(e)
+    }
+
+    override suspend fun isBiometricEnabled(): Result<Boolean> = try {
+        val entity = lockDao.getSuspend()
+        Result.success(entity?.biometricEnabled == true)
     } catch (e: Exception) {
         Result.error(e)
     }

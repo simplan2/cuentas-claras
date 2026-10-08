@@ -26,7 +26,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -42,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -63,6 +66,9 @@ fun SettingsScreen(
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle(false)
     val error by viewModel.error.collectAsStateWithLifecycle(null)
     val showQuickAmounts by viewModel.showQuickAmounts.collectAsStateWithLifecycle(false)
+    val hasPin by viewModel.hasPin.collectAsStateWithLifecycle(false)
+    val biometricAvailable by viewModel.biometricAvailable.collectAsStateWithLifecycle(false)
+    val biometricEnabled by viewModel.biometricEnabled.collectAsStateWithLifecycle(false)
 
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -74,6 +80,13 @@ fun SettingsScreen(
     var editLabel by remember { mutableStateOf("") }
     var editValue by remember { mutableStateOf("") }
     var showDeleteConfirm by remember { mutableStateOf<QuickAmount?>(null) }
+    var showPinDialog by remember { mutableStateOf(false) }
+    var newPin by remember { mutableStateOf("") }
+    var confirmPin by remember { mutableStateOf("") }
+    var pinDialogError by remember { mutableStateOf<String?>(null) }
+    var showRemovePinConfirm by remember { mutableStateOf(false) }
+    var showMaxAccountsDialog by remember { mutableStateOf(false) }
+    var maxAccountsInput by remember { mutableStateOf("10") }
 
     val currency = settings?.currency ?: Currency.PEN
 
@@ -156,6 +169,34 @@ fun SettingsScreen(
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Tope de cuentas abiertas", fontSize = 16.sp)
+                                Text(
+                                    text = "Máximo de cuentas que puedes tener abiertas a la vez",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            IconButton(onClick = {
+                                maxAccountsInput = settings?.maxOpenAccounts?.toString() ?: "10"
+                                showMaxAccountsDialog = true
+                            }) {
+                                Text(
+                                    text = settings?.maxOpenAccounts?.toString() ?: "10",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -190,21 +231,69 @@ fun SettingsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text("PIN de inicio", fontSize = 16.sp)
                                 Text(
-                                    text = if (settings?.pinHash?.isNotBlank() == true)
-                                        "Configurado" else "No configurado",
+                                    text = if (hasPin)
+                                        "Configurado. Se pide al abrir la app"
+                                    else
+                                        "No configurado",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            IconButton(onClick = { /* TODO: Navigate to PIN setup */ }) {
+                            if (hasPin) {
+                                TextButton(onClick = {
+                                    newPin = ""
+                                    confirmPin = ""
+                                    pinDialogError = null
+                                    showPinDialog = true
+                                }) {
+                                    Text("Cambiar")
+                                }
+                                TextButton(onClick = { showRemovePinConfirm = true }) {
+                                    Text("Eliminar")
+                                }
+                            } else {
+                                TextButton(onClick = {
+                                    newPin = ""
+                                    confirmPin = ""
+                                    pinDialogError = null
+                                    showPinDialog = true
+                                }) {
+                                    Text("Configurar")
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Desbloqueo con huella", fontSize = 16.sp)
                                 Text(
-                                    if (settings?.pinHash?.isNotBlank() == true)
-                                        "Cambiar" else "Configurar"
+                                    text = when {
+                                        !hasPin -> "Configura un PIN primero"
+                                        !biometricAvailable -> "No disponible en el dispositivo"
+                                        else -> "Usa tu huella para desbloquear"
+                                    },
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                            Switch(
+                                checked = biometricEnabled,
+                                onCheckedChange = { enabled ->
+                                    scope.launch { viewModel.setBiometricEnabled(enabled) }
+                                },
+                                enabled = hasPin && biometricAvailable
+                            )
                         }
                     }
                 }
@@ -528,6 +617,184 @@ fun SettingsScreen(
             },
             dismissButton = {
                 Button(onClick = { showDeleteConfirm = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // ---------- Diálogo configurar/cambiar PIN ----------
+    if (showPinDialog) {
+        AlertDialog(
+            onDismissRequest = { showPinDialog = false },
+            title = { Text(if (hasPin) "Cambiar PIN" else "Configurar PIN") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Usa de 4 a 6 dígitos. El PIN se pedirá cada vez que abras la app.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = newPin,
+                        onValueChange = { input ->
+                            newPin = input.filter { it.isDigit() }.take(6)
+                            pinDialogError = null
+                        },
+                        label = { Text("Nuevo PIN") },
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.NumberPassword,
+                            imeAction = ImeAction.Next
+                        ),
+                        singleLine = true,
+                        isError = pinDialogError != null
+                    )
+                    OutlinedTextField(
+                        value = confirmPin,
+                        onValueChange = { input ->
+                            confirmPin = input.filter { it.isDigit() }.take(6)
+                            pinDialogError = null
+                        },
+                        label = { Text("Confirmar PIN") },
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.NumberPassword,
+                            imeAction = ImeAction.Done
+                        ),
+                        singleLine = true,
+                        isError = pinDialogError != null
+                    )
+                    pinDialogError?.let {
+                        Text(
+                            text = it,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        when {
+                            newPin.length < 4 -> pinDialogError = "El PIN debe tener al menos 4 dígitos"
+                            newPin.length > 6 -> pinDialogError = "El PIN no puede tener más de 6 dígitos"
+                            newPin != confirmPin -> pinDialogError = "Los PIN no coinciden"
+                            else -> {
+                                scope.launch {
+                                    val result = viewModel.setPin(newPin)
+                                    if (result.isSuccess()) {
+                                        showPinDialog = false
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    enabled = newPin.isNotEmpty() && confirmPin.isNotEmpty() && !isLoading
+                ) {
+                    Text("Guardar")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showPinDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // ---------- Confirmar eliminar PIN ----------
+    if (showRemovePinConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRemovePinConfirm = false },
+            title = { Text("Eliminar PIN") },
+            text = {
+                Text(
+                    "La app ya no pedirá PIN al abrirse.",
+                    modifier = Modifier.padding(8.dp)
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            viewModel.removePin()
+                            showRemovePinConfirm = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text("Eliminar", color = Color.White)
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showRemovePinConfirm = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // ---------- Diálogo tope de cuentas abiertas ----------
+    if (showMaxAccountsDialog) {
+        AlertDialog(
+            onDismissRequest = { showMaxAccountsDialog = false },
+            title = { Text("Tope de cuentas abiertas") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Indica cuántas cuentas pueden estar abiertas a la vez. " +
+                            "Al alcanzar el tope deberás cerrar una para crear otra.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = maxAccountsInput,
+                        onValueChange = { input ->
+                            maxAccountsInput = input.filter { it.isDigit() }.take(2)
+                        },
+                        label = { Text("Máximo") },
+                        placeholder = { Text("10") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Done
+                        ),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val value = maxAccountsInput.toIntOrNull()
+                        if (value != null && value >= 1) {
+                            scope.launch {
+                                viewModel.updateMaxOpenAccounts(value)
+                                showMaxAccountsDialog = false
+                            }
+                        }
+                    },
+                    enabled = maxAccountsInput.toIntOrNull()?.let { it >= 1 } == true && !isLoading
+                ) {
+                    Text("Guardar")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showMaxAccountsDialog = false }) {
                     Text("Cancelar")
                 }
             }

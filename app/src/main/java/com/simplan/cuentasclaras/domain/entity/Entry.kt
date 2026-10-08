@@ -6,7 +6,6 @@ import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import java.time.Instant
 
 @Serializable
 data class Entry(
@@ -16,8 +15,8 @@ data class Entry(
     val amountCents: Long,
     val type: EntryType,
     val note: String = "",
-    val date: Long = Instant.now().toEpochMilli(),
-    val createdAt: Long = Instant.now().toEpochMilli()
+    val date: Long = System.currentTimeMillis(),
+    val createdAt: Long = System.currentTimeMillis()
 ) {
     @Serializable(with = EntryTypeSerializer::class)
     enum class EntryType(val value: Int) {

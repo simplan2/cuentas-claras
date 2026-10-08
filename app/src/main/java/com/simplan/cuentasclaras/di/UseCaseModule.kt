@@ -11,6 +11,12 @@ import com.simplan.cuentasclaras.domain.usecase.entry.EntryUseCases
 import com.simplan.cuentasclaras.domain.usecase.entry.EntryUseCasesImpl
 import com.simplan.cuentasclaras.domain.usecase.lock.IsLockedUseCase
 import com.simplan.cuentasclaras.domain.usecase.lock.IsLockedUseCaseImpl
+import com.simplan.cuentasclaras.domain.usecase.lock.HasPinUseCase
+import com.simplan.cuentasclaras.domain.usecase.lock.HasPinUseCaseImpl
+import com.simplan.cuentasclaras.domain.usecase.lock.GetPinLengthUseCase
+import com.simplan.cuentasclaras.domain.usecase.lock.GetPinLengthUseCaseImpl
+import com.simplan.cuentasclaras.domain.usecase.lock.ClearPinUseCase
+import com.simplan.cuentasclaras.domain.usecase.lock.ClearPinUseCaseImpl
 import com.simplan.cuentasclaras.domain.usecase.lock.LockUseCase
 import com.simplan.cuentasclaras.domain.usecase.lock.LockUseCaseImpl
 import com.simplan.cuentasclaras.domain.usecase.lock.LockUseCases
@@ -29,6 +35,8 @@ import com.simplan.cuentasclaras.domain.usecase.lock.SetAutoLockDelayUseCase
 import com.simplan.cuentasclaras.domain.usecase.lock.SetAutoLockDelayUseCaseImpl
 import com.simplan.cuentasclaras.domain.usecase.lock.IsBiometricAvailableUseCase
 import com.simplan.cuentasclaras.domain.usecase.lock.IsBiometricAvailableUseCaseImpl
+import com.simplan.cuentasclaras.domain.usecase.lock.IsBiometricEnabledUseCase
+import com.simplan.cuentasclaras.domain.usecase.lock.IsBiometricEnabledUseCaseImpl
 import com.simplan.cuentasclaras.domain.usecase.lock.AuthenticateWithBiometricUseCase
 import com.simplan.cuentasclaras.domain.usecase.lock.AuthenticateWithBiometricUseCaseImpl
 import com.simplan.cuentasclaras.domain.usecase.quickamount.GetQuickAmountsUseCase
@@ -138,6 +146,21 @@ object UseCaseModule {
 
     @Provides
     @Singleton
+    fun provideHasPinUseCase(lockRepository: LockRepository): HasPinUseCase =
+        HasPinUseCaseImpl(lockRepository)
+
+    @Provides
+    @Singleton
+    fun provideGetPinLengthUseCase(lockRepository: LockRepository): GetPinLengthUseCase =
+        GetPinLengthUseCaseImpl(lockRepository)
+
+    @Provides
+    @Singleton
+    fun provideClearPinUseCase(lockRepository: LockRepository): ClearPinUseCase =
+        ClearPinUseCaseImpl(lockRepository)
+
+    @Provides
+    @Singleton
     fun provideLockUseCase(lockRepository: LockRepository): LockUseCase =
         LockUseCaseImpl(lockRepository)
 
@@ -163,6 +186,11 @@ object UseCaseModule {
 
     @Provides
     @Singleton
+    fun provideIsBiometricEnabledUseCase(lockRepository: LockRepository): IsBiometricEnabledUseCase =
+        IsBiometricEnabledUseCaseImpl(lockRepository)
+
+    @Provides
+    @Singleton
     fun provideAuthenticateWithBiometricUseCase(lockRepository: LockRepository): AuthenticateWithBiometricUseCase =
         AuthenticateWithBiometricUseCaseImpl(lockRepository)
 
@@ -185,22 +213,30 @@ object UseCaseModule {
     @Singleton
     fun provideLockUseCases(
         isLockedUseCase: IsLockedUseCase,
+        hasPinUseCase: HasPinUseCase,
+        getPinLengthUseCase: GetPinLengthUseCase,
         lockUseCase: LockUseCase,
         unlockWithPinUseCase: UnlockWithPinUseCase,
         setPinUseCase: SetPinUseCase,
+        clearPinUseCase: ClearPinUseCase,
         verifyPinUseCase: VerifyPinUseCase,
         isBiometricAvailableUseCase: IsBiometricAvailableUseCase,
+        isBiometricEnabledUseCase: IsBiometricEnabledUseCase,
         authenticateWithBiometricUseCase: AuthenticateWithBiometricUseCase,
         setBiometricEnabledUseCase: SetBiometricEnabledUseCase,
         getAutoLockDelayUseCase: GetAutoLockDelayUseCase,
         setAutoLockDelayUseCase: SetAutoLockDelayUseCase
     ): LockUseCases = LockUseCasesImpl(
         isLockedUseCase,
+        hasPinUseCase,
+        getPinLengthUseCase,
         lockUseCase,
         unlockWithPinUseCase,
         setPinUseCase,
+        clearPinUseCase,
         verifyPinUseCase,
         isBiometricAvailableUseCase,
+        isBiometricEnabledUseCase,
         authenticateWithBiometricUseCase,
         setBiometricEnabledUseCase,
         getAutoLockDelayUseCase,

@@ -2,9 +2,9 @@ package com.simplan.cuentasclaras
 
 import android.content.Context
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -13,8 +13,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
 import com.simplan.cuentasclaras.common.Result
 import com.simplan.cuentasclaras.ui.MainViewModel
@@ -23,15 +25,28 @@ import com.simplan.cuentasclaras.ui.screen.firstrun.FirstRunScreen
 import com.simplan.cuentasclaras.ui.screen.lock.LockScreen
 import com.simplan.cuentasclaras.ui.theme.CuentasClarasTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
+
+    private val mainViewModel: MainViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             CuentasClarasTheme {
                 MainNavHost()
+            }
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) {
+            lifecycleScope.launch {
+                mainViewModel.lockIfPinConfigured()
             }
         }
     }
@@ -56,6 +71,7 @@ fun MainNavHost() {
     }
 
     // ---------- Chequear estado de bloqueo ----------
+
     val lockState by mainViewModel
         .observeLockState
         .collectAsStateWithLifecycle(initialValue = Result.success(false))

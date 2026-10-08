@@ -6,12 +6,15 @@ import kotlinx.coroutines.flow.Flow
 interface LockRepository {
     suspend fun isLocked(): Result<Boolean>
     fun observeLockState(): Flow<Result<Boolean>>
+    suspend fun hasPin(): Result<Boolean>
+    suspend fun getPinLength(): Result<Int>
     suspend fun lock(): Result<Unit>
     suspend fun unlock(pin: String): Result<Boolean>
     suspend fun verifyPin(pin: String): Result<Boolean>
     suspend fun setPin(pin: String): Result<Unit>
     suspend fun clearPin(): Result<Unit>
     suspend fun isBiometricAvailable(): Result<Boolean>
+    suspend fun isBiometricEnabled(): Result<Boolean>
     suspend fun authenticateWithBiometric(): Result<Boolean>
     suspend fun setBiometricEnabled(enabled: Boolean): Result<Unit>
     suspend fun getAutoLockDelay(): Result<Int>

@@ -47,4 +47,11 @@ class MainViewModel @Inject constructor(
     fun markFirstRunCompleted() {
         _isFirstRun.value = false
     }
+
+    suspend fun lockIfPinConfigured() {
+        val hasPin = lockUseCases.hasPin()
+        if (hasPin.isSuccess() && hasPin.getOrNull() == true) {
+            lockUseCases.lock()
+        }
+    }
 }

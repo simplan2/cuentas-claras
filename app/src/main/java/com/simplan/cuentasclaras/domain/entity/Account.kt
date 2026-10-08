@@ -2,7 +2,6 @@ package com.simplan.cuentasclaras.domain.entity
 
 import com.simplan.cuentasclaras.common.Currency
 import kotlinx.serialization.Serializable
-import java.time.Instant
 
 @Serializable
 data class Account(
@@ -15,8 +14,8 @@ data class Account(
     val isDefault: Boolean = false,
     val balanceCents: Long = 0L,
     val sortOrder: Int = 0,
-    val createdAt: Long = Instant.now().toEpochMilli(),
-    val updatedAt: Long = Instant.now().toEpochMilli()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
 ) {
     val currency: Currency
         get() = Currency.getByCode(currencyCode)
@@ -41,7 +40,7 @@ data class Account(
         isDefault = isDefault,
         balanceCents = balanceCents,
         sortOrder = sortOrder,
-        updatedAt = Instant.now().toEpochMilli()
+        updatedAt = System.currentTimeMillis()
     )
 
     fun close(): Account = copyWith(isOpen = false)

@@ -9,6 +9,14 @@ sealed interface IsLockedUseCase {
     fun observe(): Flow<Result<Boolean>>
 }
 
+sealed interface HasPinUseCase {
+    suspend operator fun invoke(): Result<Boolean>
+}
+
+sealed interface GetPinLengthUseCase {
+    suspend operator fun invoke(): Result<Int>
+}
+
 sealed interface LockUseCase {
     suspend operator fun invoke(): Result<Unit>
 }
@@ -21,11 +29,19 @@ sealed interface SetPinUseCase {
     suspend operator fun invoke(pin: String): Result<Unit>
 }
 
+sealed interface ClearPinUseCase {
+    suspend operator fun invoke(): Result<Unit>
+}
+
 sealed interface VerifyPinUseCase {
     suspend operator fun invoke(pin: String): Result<Boolean>
 }
 
 sealed interface IsBiometricAvailableUseCase {
+    suspend operator fun invoke(): Result<Boolean>
+}
+
+sealed interface IsBiometricEnabledUseCase {
     suspend operator fun invoke(): Result<Boolean>
 }
 
@@ -48,12 +64,15 @@ sealed interface SetAutoLockDelayUseCase {
 interface LockUseCases {
     suspend fun isLocked(): Result<Boolean>
     fun observeLockState(): Flow<Result<Boolean>>
+    suspend fun hasPin(): Result<Boolean>
+    suspend fun getPinLength(): Result<Int>
     suspend fun lock(): Result<Unit>
     suspend fun unlock(pin: String): Result<Boolean>
     suspend fun verifyPin(pin: String): Result<Boolean>
     suspend fun setPin(pin: String): Result<Unit>
     suspend fun clearPin(): Result<Unit>
     suspend fun isBiometricAvailable(): Result<Boolean>
+    suspend fun isBiometricEnabled(): Result<Boolean>
     suspend fun authenticateWithBiometric(): Result<Boolean>
     suspend fun setBiometricEnabled(enabled: Boolean): Result<Unit>
     suspend fun getAutoLockDelay(): Result<Int>
@@ -68,6 +87,14 @@ class IsLockedUseCaseImpl(private val repository: LockRepository) : IsLockedUseC
     override fun observe(): Flow<Result<Boolean>> = repository.observeLockState()
 }
 
+class HasPinUseCaseImpl(private val repository: LockRepository) : HasPinUseCase {
+    override suspend fun invoke(): Result<Boolean> = repository.hasPin()
+}
+
+class GetPinLengthUseCaseImpl(private val repository: LockRepository) : GetPinLengthUseCase {
+    override suspend fun invoke(): Result<Int> = repository.getPinLength()
+}
+
 class LockUseCaseImpl(private val repository: LockRepository) : LockUseCase {
     override suspend fun invoke(): Result<Unit> = repository.lock()
 }
@@ -80,12 +107,20 @@ class SetPinUseCaseImpl(private val repository: LockRepository) : SetPinUseCase 
     override suspend fun invoke(pin: String): Result<Unit> = repository.setPin(pin)
 }
 
+class ClearPinUseCaseImpl(private val repository: LockRepository) : ClearPinUseCase {
+    override suspend fun invoke(): Result<Unit> = repository.clearPin()
+}
+
 class VerifyPinUseCaseImpl(private val repository: LockRepository) : VerifyPinUseCase {
     override suspend fun invoke(pin: String): Result<Boolean> = repository.verifyPin(pin)
 }
 
 class IsBiometricAvailableUseCaseImpl(private val repository: LockRepository) : IsBiometricAvailableUseCase {
     override suspend fun invoke(): Result<Boolean> = repository.isBiometricAvailable()
+}
+
+class IsBiometricEnabledUseCaseImpl(private val repository: LockRepository) : IsBiometricEnabledUseCase {
+    override suspend fun invoke(): Result<Boolean> = repository.isBiometricEnabled()
 }
 
 class AuthenticateWithBiometricUseCaseImpl(private val repository: LockRepository) : AuthenticateWithBiometricUseCase {
@@ -106,11 +141,15 @@ class SetAutoLockDelayUseCaseImpl(private val repository: LockRepository) : SetA
 
 class LockUseCasesImpl(
     private val isLockedUseCase: IsLockedUseCase,
+    private val hasPinUseCase: HasPinUseCase,
+    private val getPinLengthUseCase: GetPinLengthUseCase,
     private val lockUseCase: LockUseCase,
     private val unlockWithPinUseCase: UnlockWithPinUseCase,
     private val setPinUseCase: SetPinUseCase,
+    private val clearPinUseCase: ClearPinUseCase,
     private val verifyPinUseCase: VerifyPinUseCase,
     private val isBiometricAvailableUseCase: IsBiometricAvailableUseCase,
+    private val isBiometricEnabledUseCase: IsBiometricEnabledUseCase,
     private val authenticateWithBiometricUseCase: AuthenticateWithBiometricUseCase,
     private val setBiometricEnabledUseCase: SetBiometricEnabledUseCase,
     private val getAutoLockDelayUseCase: GetAutoLockDelayUseCase,
@@ -119,12 +158,15 @@ class LockUseCasesImpl(
 
     override suspend fun isLocked(): Result<Boolean> = isLockedUseCase()
     override fun observeLockState(): Flow<Result<Boolean>> = isLockedUseCase.observe()
+    override suspend fun hasPin(): Result<Boolean> = hasPinUseCase()
+    override suspend fun getPinLength(): Result<Int> = getPinLengthUseCase()
     override suspend fun lock(): Result<Unit> = lockUseCase()
     override suspend fun unlock(pin: String): Result<Boolean> = unlockWithPinUseCase(pin)
     override suspend fun verifyPin(pin: String): Result<Boolean> = verifyPinUseCase(pin)
     override suspend fun setPin(pin: String): Result<Unit> = setPinUseCase(pin)
-    override suspend fun clearPin(): Result<Unit> = setPinUseCase("")
+    override suspend fun clearPin(): Result<Unit> = clearPinUseCase()
     override suspend fun isBiometricAvailable(): Result<Boolean> = isBiometricAvailableUseCase()
+    override suspend fun isBiometricEnabled(): Result<Boolean> = isBiometricEnabledUseCase()
     override suspend fun authenticateWithBiometric(): Result<Boolean> = authenticateWithBiometricUseCase()
     override suspend fun setBiometricEnabled(enabled: Boolean): Result<Unit> = setBiometricEnabledUseCase(enabled)
     override suspend fun getAutoLockDelay(): Result<Int> = getAutoLockDelayUseCase()

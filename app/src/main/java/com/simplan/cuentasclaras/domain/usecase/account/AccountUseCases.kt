@@ -86,15 +86,26 @@ class AccountUseCasesImpl(
         return if (accountResult.isSuccess()) {
             repository.update(accountResult.getOrThrow().close())
         } else {
-            accountResult as Result<Unit>
+            accountResult.map { Unit }
         }
     }
     override suspend fun setDefaultAccount(id: Long): Result<Unit> {
+        val allResult = repository.getAll()
+        if (allResult.isError()) return allResult.map { Unit }
+        allResult.getOrThrow().forEach { account ->
+            val shouldBeDefault = account.id == id
+            if (account.isDefault != shouldBeDefault) {
+                val updateResult = repository.update(
+                    if (shouldBeDefault) account.setAsDefault() else account.unsetAsDefault()
+                )
+                if (updateResult.isError()) return updateResult
+            }
+        }
         val settingsResult = settingsRepository.get()
         return if (settingsResult.isSuccess()) {
             settingsRepository.save(settingsResult.getOrThrow().copyWith(defaultAccountId = id))
         } else {
-            settingsResult as Result<Unit>
+            settingsResult.map { Unit }
         }
     }
 }
@@ -143,8 +154,7 @@ class CloseAccountUseCaseImpl(
         return if (accountResult.isSuccess()) {
             repository.update(accountResult.getOrThrow().close())
         } else {
-            @Suppress("UNCHECKED_CAST")
-            accountResult as Result<Unit>
+            accountResult.map { Unit }
         }
     }
 }
@@ -158,8 +168,7 @@ class SetDefaultAccountUseCaseImpl(
         return if (settingsResult.isSuccess()) {
             settingsRepository.save(settingsResult.getOrThrow().copyWith(defaultAccountId = id))
         } else {
-            @Suppress("UNCHECKED_CAST")
-            settingsResult as Result<Unit>
+            settingsResult.map { Unit }
         }
     }
 }

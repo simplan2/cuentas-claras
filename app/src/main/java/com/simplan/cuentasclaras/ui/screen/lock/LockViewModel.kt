@@ -18,6 +18,9 @@ class LockViewModel @Inject constructor(
     private val _pin = MutableStateFlow("")
     val pin = _pin.asStateFlow()
 
+    private val _pinLength = MutableStateFlow(4)
+    val pinLength = _pinLength.asStateFlow()
+
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
 
@@ -32,14 +35,26 @@ class LockViewModel @Inject constructor(
 
     init {
         checkBiometricAvailability()
+        loadPinLength()
+    }
+
+    private fun loadPinLength() {
+        viewModelScope.launch {
+            val result = lockUseCases.getPinLength()
+            if (result.isSuccess()) {
+                val length = result.getOrNull() ?: 0
+                _pinLength.value = if (length in 4..6) length else 4
+            }
+        }
     }
 
     private fun checkBiometricAvailability() {
         viewModelScope.launch {
-            val result = lockUseCases.isBiometricAvailable()
-            if (result.isSuccess() && result.getOrNull() == true) {
-                _showBiometric.value = true
-            }
+            val availableResult = lockUseCases.isBiometricAvailable()
+            val enabledResult = lockUseCases.isBiometricEnabled()
+            val available = availableResult.isSuccess() && availableResult.getOrNull() == true
+            val enabled = enabledResult.isSuccess() && enabledResult.getOrNull() == true
+            _showBiometric.value = available && enabled
         }
     }
 
@@ -71,13 +86,12 @@ class LockViewModel @Inject constructor(
         val result = lockUseCases.verifyPin(_pin.value)
         if (result.isSuccess() && result.getOrNull() == true) {
             _pin.value = ""
+            _failedAttempts.value = 0
             onSuccess()
         } else {
             _error.value = "PIN incorrecto"
-            val attemptsResult = lockUseCases.getFailedAttempts()
-            if (attemptsResult.isSuccess()) {
-                _failedAttempts.value = attemptsResult.getOrNull() ?: 0
-            }
+            _failedAttempts.value += 1
+            _pin.value = ""
         }
         _isLoading.value = false
     }
@@ -113,6 +127,18 @@ class LockViewModel @Inject constructor(
             _error.value = "Autenticación biométrica fallida"
         }
         _isLoading.value = false
+    }
+
+    fun onBiometricSuccess(onSuccess: () -> Unit) {
+        _failedAttempts.value = 0
+        _error.value = null
+        onSuccess()
+    }
+
+    fun onBiometricError(errorCode: Int, errString: String) {
+        if (errorCode != androidx.biometric.BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
+            _error.value = errString
+        }
     }
 
     fun clearError() {

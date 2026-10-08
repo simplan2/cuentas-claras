@@ -140,4 +140,7 @@ object Icons {
 
     @Composable
     fun backspace(): ImageVector = ImageVector.vectorResource(id = R.drawable.ic_backspace)
+
+    @Composable
+    fun chevronRight(): ImageVector = ImageVector.vectorResource(id = R.drawable.ic_chevron_right)
 }

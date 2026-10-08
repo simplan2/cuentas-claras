@@ -27,6 +27,9 @@ class AccountManagerViewModel @Inject constructor(
     private val _defaultAccountId = MutableStateFlow(0L)
     val defaultAccountId = _defaultAccountId.asStateFlow()
 
+    private val _maxOpenAccounts = MutableStateFlow(10)
+    val maxOpenAccounts = _maxOpenAccounts.asStateFlow()
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
 
@@ -46,7 +49,9 @@ class AccountManagerViewModel @Inject constructor(
             }
             val settingsResult = settingsUseCases.getSettings()
             if (settingsResult.isSuccess()) {
-                _defaultAccountId.value = settingsResult.getOrNull()?.defaultAccountId ?: 0L
+                val settings = settingsResult.getOrNull()
+                _defaultAccountId.value = settings?.defaultAccountId ?: 0L
+                _maxOpenAccounts.value = (settings?.maxOpenAccounts ?: 10).coerceAtLeast(1)
             }
             _isLoading.value = false
         }
@@ -54,14 +59,29 @@ class AccountManagerViewModel @Inject constructor(
 
     suspend fun createAccount(account: Account): Result<Unit> {
         _isLoading.value = true
-        val result = accountUseCases.createAccount(account).map { Unit }
-        if (result.isSuccess()) {
-            loadAccounts()
-        } else {
-            _error.value = result.errorMessage ?: "Error al crear la cuenta"
+        val openCount = _accounts.value.count { it.isOpen }
+        if (openCount >= _maxOpenAccounts.value) {
+            _isLoading.value = false
+            val message = "Has alcanzado el máximo de ${_maxOpenAccounts.value} cuentas abiertas"
+            _error.value = message
+            return Result.error(message)
         }
+        val isNewDefault = openCount == 0
+        val idResult = accountUseCases.createAccount(
+            if (isNewDefault) account.setAsDefault() else account
+        )
+        if (idResult.isSuccess()) {
+            val newId = idResult.getOrThrow()
+            if (isNewDefault) {
+                accountUseCases.setDefaultAccount(newId)
+            }
+            loadAccounts()
+            _isLoading.value = false
+            return Result.success(Unit)
+        }
+        _error.value = idResult.errorMessage ?: "Error al crear la cuenta"
         _isLoading.value = false
-        return result
+        return idResult.map { Unit }
     }
 
     suspend fun updateAccount(account: Account): Result<Unit> {
@@ -78,11 +98,39 @@ class AccountManagerViewModel @Inject constructor(
 
     suspend fun deleteAccount(id: Long): Result<Unit> {
         _isLoading.value = true
+        val wasDefault = id == _defaultAccountId.value
         val result = accountUseCases.deleteAccount(id)
         if (result.isSuccess()) {
+            if (wasDefault) {
+                val nextDefault = _accounts.value.firstOrNull { it.id != id && it.isOpen }
+                if (nextDefault != null) {
+                    accountUseCases.setDefaultAccount(nextDefault.id)
+                } else {
+                    settingsUseCases.getSettings().getOrNull()?.let {
+                        settingsUseCases.saveSettings(it.copyWith(defaultAccountId = 0L))
+                    }
+                }
+            }
             loadAccounts()
         } else {
             _error.value = result.errorMessage ?: "Error al eliminar la cuenta"
+        }
+        _isLoading.value = false
+        return result
+    }
+
+    suspend fun openAccount(id: Long): Result<Unit> {
+        _isLoading.value = true
+        val account = _accounts.value.find { it.id == id }
+        val result = if (account == null) {
+            Result.error("Cuenta no encontrada")
+        } else {
+            accountUseCases.updateAccount(account.open())
+        }
+        if (result.isSuccess()) {
+            loadAccounts()
+        } else {
+            _error.value = result.errorMessage ?: "Error al reabrir la cuenta"
         }
         _isLoading.value = false
         return result
@@ -125,7 +173,7 @@ class AccountManagerViewModel @Inject constructor(
     }
 
     fun getMaxOpenAccounts(): Int {
-        return 10 // TODO: get from settings
+        return _maxOpenAccounts.value
     }
 
     fun canCreateMore(): Boolean {

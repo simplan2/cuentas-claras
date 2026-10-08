@@ -1,5 +1,8 @@
 package com.simplan.cuentasclaras.ui.screen.lock
 
+import androidx.activity.compose.LocalActivity
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -21,11 +24,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -33,6 +34,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.simplan.cuentasclaras.ui.Icons
@@ -44,19 +47,21 @@ fun LockScreen(
     viewModel: LockViewModel = hiltViewModel()
 ) {
     val pin by viewModel.pin.collectAsStateWithLifecycle("")
+    val pinLength by viewModel.pinLength.collectAsStateWithLifecycle(4)
     val error by viewModel.error.collectAsStateWithLifecycle(null)
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle(false)
     val showBiometric by viewModel.showBiometric.collectAsStateWithLifecycle(false)
     val failedAttempts by viewModel.failedAttempts.collectAsStateWithLifecycle(0)
 
     val scope = rememberCoroutineScope()
+    val activity = LocalActivity.current as? FragmentActivity
 
-    // Desbloqueo automático cuando el PIN es correcto
-    var unlocked by remember { mutableStateOf(false) }
-
-    // Escuchar cambios de pin para desbloquear cuando el VM lo indique
-    // (Si tu VM expone un StateFlow<Boolean> isUnlocked, úsalo aquí)
-    // Por ahora, asumimos que el VM llama a onUnlocked vía authenticateWithBiometric o similar.
+    // Verificar automáticamente cuando se completa el PIN
+    LaunchedEffect(pin, pinLength) {
+        if (pin.isNotEmpty() && pin.length >= pinLength) {
+            viewModel.verifyPin(onUnlocked)
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -184,8 +189,44 @@ fun LockScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(
                             onClick = {
-                                scope.launch {
-                                    viewModel.authenticateWithBiometric(onUnlocked)
+                                if (activity != null) {
+                                    val executor = ContextCompat.getMainExecutor(activity)
+                                    val prompt = BiometricPrompt(
+                                        activity,
+                                        executor,
+                                        object : BiometricPrompt.AuthenticationCallback() {
+                                            override fun onAuthenticationSucceeded(
+                                                result: BiometricPrompt.AuthenticationResult
+                                            ) {
+                                                viewModel.onBiometricSuccess(onUnlocked)
+                                            }
+
+                                            override fun onAuthenticationError(
+                                                errorCode: Int,
+                                                errString: CharSequence
+                                            ) {
+                                                viewModel.onBiometricError(
+                                                    errorCode,
+                                                    errString.toString()
+                                                )
+                                            }
+                                        }
+                                    )
+                                    prompt.authenticate(
+                                        BiometricPrompt.PromptInfo.Builder()
+                                            .setTitle("Desbloquear Cuentas Claras")
+                                            .setSubtitle("Usa tu huella para continuar")
+                                            .setNegativeButtonText("Usar PIN")
+                                            .setAllowedAuthenticators(
+                                                BiometricManager.Authenticators.BIOMETRIC_STRONG
+                                                    or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                                            )
+                                            .build()
+                                    )
+                                } else {
+                                    scope.launch {
+                                        viewModel.authenticateWithBiometric(onUnlocked)
+                                    }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
