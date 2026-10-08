@@ -1,16 +1,38 @@
+# Gradle
+.gradle/
+build/
+*/build/
+
+# Configuración local (ruta del SDK, etc.)
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
+.idea/caches/
+.idea/libraries/
+.idea/modules.xml
+.idea/workspace.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+
+# Sistema operativo
 .DS_Store
-/build
+
+# Capturas y build nativo
 /captures
 .externalNativeBuild
 .cxx
-local.properties
-/*.txt
+
+# Kotlin
+.kotlin/
+
+# Claves de firma (¡NUNCA subir!)
+*.jks
+*.keystore
+key.properties
+keystore.properties
+
+# Archivos temporales
+*.log
+*.tmp
