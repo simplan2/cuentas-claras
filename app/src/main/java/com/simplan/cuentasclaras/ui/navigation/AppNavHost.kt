@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.simplan.cuentasclaras.ui.screen.accountdetail.AccountDetailScreen
+import com.simplan.cuentasclaras.ui.screen.accounthistory.AccountHistoryScreen
 import com.simplan.cuentasclaras.ui.screen.accountmanager.AccountManagerScreen
 import com.simplan.cuentasclaras.ui.screen.home.HomeScreen
 import com.simplan.cuentasclaras.ui.screen.lock.LockScreen
@@ -47,6 +48,16 @@ fun AppNavHost(
         composable<Routes.AccountDetail> { backStackEntry ->
             val route = backStackEntry.toRoute<Routes.AccountDetail>()
             AccountDetailScreen(
+                accountId = route.accountId,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToAccountHistory = { accountId ->
+                    navController.navigate(Routes.AccountHistory(accountId))
+                }
+            )
+        }
+        composable<Routes.AccountHistory> { backStackEntry ->
+            val route = backStackEntry.toRoute<Routes.AccountHistory>()
+            AccountHistoryScreen(
                 accountId = route.accountId,
                 onNavigateBack = { navController.popBackStack() }
             )

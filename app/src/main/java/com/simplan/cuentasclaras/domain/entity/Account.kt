@@ -37,6 +37,7 @@ data class Account(
         currencyCode = currencyCode,
         icon = icon,
         color = color,
+        isOpen = isOpen,
         isDefault = isDefault,
         balanceCents = balanceCents,
         sortOrder = sortOrder,

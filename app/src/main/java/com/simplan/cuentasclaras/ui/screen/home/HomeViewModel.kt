@@ -12,6 +12,7 @@ import com.simplan.cuentasclaras.domain.usecase.entry.EntryUseCases
 import com.simplan.cuentasclaras.domain.usecase.quickamount.QuickAmountUseCases
 import com.simplan.cuentasclaras.domain.usecase.settings.SettingsUseCases
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
@@ -43,6 +44,9 @@ class HomeViewModel @Inject constructor(
     private val _quickAmounts = MutableStateFlow<List<QuickAmount>>(emptyList())
     val quickAmounts = _quickAmounts.asStateFlow()
 
+    private val _accounts = MutableStateFlow<List<Account>>(emptyList())
+    val accounts = _accounts.asStateFlow()
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
 
@@ -58,6 +62,9 @@ class HomeViewModel @Inject constructor(
     private val _isIncome = MutableStateFlow(true)
     val isIncome = _isIncome.asStateFlow()
 
+    private val _justSaved = MutableStateFlow(false)
+    val justSaved = _justSaved.asStateFlow()
+
     init {
         loadData()
     }
@@ -71,13 +78,32 @@ class HomeViewModel @Inject constructor(
                 _account.value = account
                 if (account != null) {
                     loadAccountData(account.id)
+                } else {
+                    _total.value = 0L
+                    _incomeTotal.value = 0L
+                    _expenseTotal.value = 0L
                 }
+            }
+            val accountsResult = accountUseCases.getAllAccounts()
+            if (accountsResult.isSuccess()) {
+                _accounts.value = accountsResult.getOrNull() ?: emptyList()
             }
             val quickAmountsResult = quickAmountUseCases.getEnabled()
             if (quickAmountsResult.isSuccess()) {
                 _quickAmounts.value = quickAmountsResult.getOrNull() ?: emptyList()
             }
             _isLoading.value = false
+        }
+    }
+
+    fun switchAccount(accountId: Long) {
+        viewModelScope.launch {
+            val result = accountUseCases.setDefaultAccount(accountId)
+            if (result.isSuccess()) {
+                loadData()
+            } else {
+                _error.value = result.errorMessage ?: "No se pudo cambiar la cuenta"
+            }
         }
     }
 
@@ -152,6 +178,11 @@ class HomeViewModel @Inject constructor(
 
         val result = entryUseCases.createEntry(entry)
         if (result.isSuccess()) {
+            _justSaved.value = true
+            viewModelScope.launch {
+                delay(2200)
+                _justSaved.value = false
+            }
             _amountText.value = ""
             _conceptText.value = ""
             loadAccountData(account.id)

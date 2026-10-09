@@ -1,24 +1,24 @@
 package com.simplan.cuentasclaras
 
-import android.content.Context
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
+import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
 import com.simplan.cuentasclaras.common.Result
+import com.simplan.cuentasclaras.domain.entity.Settings
 import com.simplan.cuentasclaras.ui.MainViewModel
 import com.simplan.cuentasclaras.ui.navigation.AppNavHost
 import com.simplan.cuentasclaras.ui.screen.firstrun.FirstRunScreen
@@ -36,7 +36,22 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            CuentasClarasTheme {
+            val themeMode by mainViewModel.themeMode
+                .collectAsStateWithLifecycle(initialValue = Settings.ThemeMode.SYSTEM)
+            val darkTheme = when (themeMode) {
+                Settings.ThemeMode.LIGHT -> false
+                Settings.ThemeMode.DARK -> true
+                Settings.ThemeMode.SYSTEM -> isSystemInDarkTheme()
+            }
+            CuentasClarasTheme(darkTheme = darkTheme) {
+                LaunchedEffect(darkTheme) {
+                    val controller = WindowCompat.getInsetsController(
+                        window,
+                        window.decorView
+                    )
+                    controller.isAppearanceLightStatusBars = !darkTheme
+                    controller.isAppearanceLightNavigationBars = !darkTheme
+                }
                 MainNavHost()
             }
         }
@@ -56,44 +71,33 @@ class MainActivity : FragmentActivity() {
 fun MainNavHost() {
     val navController = rememberNavController()
     val mainViewModel: MainViewModel = hiltViewModel()
-    val context = LocalContext.current
 
-    var isFirstRun by rememberSaveable { mutableStateOf(true) }
     var showLock by rememberSaveable { mutableStateOf(false) }
 
-    // ---------- Chequear first run ----------
-    LaunchedEffect(Unit) {
-        val sharedPref = context.getSharedPreferences(
-            "cuentasclaras_prefs",
-            Context.MODE_PRIVATE
-        )
-        isFirstRun = !sharedPref.getBoolean("first_run_completed", false)
-    }
+    // ---------- ¿Existen cuentas? ----------
+    val hasAccounts by mainViewModel.hasAccounts
+        .collectAsStateWithLifecycle(initialValue = null)
 
     // ---------- Chequear estado de bloqueo ----------
-
     val lockState by mainViewModel
         .observeLockState
         .collectAsStateWithLifecycle(initialValue = Result.success(false))
 
-    LaunchedEffect(lockState) {
+    LaunchedEffect(lockState, hasAccounts) {
         val shouldLock = lockState.isSuccess() && lockState.getOrNull() == true
-        if (shouldLock && !showLock && !isFirstRun) {
+        if (shouldLock && !showLock && hasAccounts == true) {
             showLock = true
         }
     }
 
     when {
-        isFirstRun -> {
+        hasAccounts == null -> {
+            // Cargando estado inicial
+        }
+
+        hasAccounts == false -> {
             FirstRunScreen(
-                onAccountCreated = {
-                    val sharedPref = context.getSharedPreferences(
-                        "cuentasclaras_prefs",
-                        Context.MODE_PRIVATE
-                    )
-                    sharedPref.edit().putBoolean("first_run_completed", true).apply()
-                    isFirstRun = false
-                }
+                onAccountCreated = { showLock = false }
             )
         }
 

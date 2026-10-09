@@ -1,11 +1,75 @@
 package com.simplan.cuentasclaras.ui.theme
 
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+val BrandDark = darkColorScheme(
+    primary = Color(0xFF35C995),
+    onPrimary = Color(0xFF06241A),
+    primaryContainer = Color(0xFF0E3A2E),
+    onPrimaryContainer = Color(0xFFB7F5DF),
+    secondary = Color(0xFF9FB0C4),
+    onSecondary = Color(0xFF1B2733),
+    secondaryContainer = Color(0xFF24384E),
+    onSecondaryContainer = Color(0xFFD7E4F2),
+    tertiary = Color(0xFF6EA8D9),
+    onTertiary = Color(0xFF0E2A3C),
+    tertiaryContainer = Color(0xFF19425A),
+    onTertiaryContainer = Color(0xFFCFE8FF),
+    error = Color(0xFFFF626B),
+    onError = Color(0xFF2B0608),
+    errorContainer = Color(0xFF3A1A1E),
+    onErrorContainer = Color(0xFFFFDAD0),
+    background = Color(0xFF06111C),
+    onBackground = Color(0xFFF1F5F9),
+    surface = Color(0xFF0B1B2A),
+    onSurface = Color(0xFFF1F5F9),
+    surfaceVariant = Color(0xFF102536),
+    onSurfaceVariant = Color(0xFF91A4B9),
+    outline = Color(0xFF20374B),
+    outlineVariant = Color(0xFF20374B),
+    surfaceContainerLowest = Color(0xFF05101A),
+    surfaceContainerLow = Color(0xFF0B1B2A),
+    surfaceContainer = Color(0xFF0F2133),
+    surfaceContainerHigh = Color(0xFF102536),
+    surfaceContainerHighest = Color(0xFF142A3C),
+    inverseSurface = Color(0xFFF1F5F9),
+    inverseOnSurface = Color(0xFF06111C),
+    inversePrimary = Color(0xFF087F68)
+)
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+val BrandLight = lightColorScheme(
+    primary = Color(0xFF089B74),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFBFEDDF),
+    onPrimaryContainer = Color(0xFF00382A),
+    secondary = Color(0xFF52665F),
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFD5E4DD),
+    onSecondaryContainer = Color(0xFF10221C),
+    tertiary = Color(0xFF39618C),
+    onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFD2E5FF),
+    onTertiaryContainer = Color(0xFF001D37),
+    error = Color(0xFFD92D40),
+    onError = Color(0xFFFFFFFF),
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF410002),
+    background = Color(0xFFF4F7FA),
+    onBackground = Color(0xFF161B21),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF161B21),
+    surfaceVariant = Color(0xFFE4EBF1),
+    onSurfaceVariant = Color(0xFF4E5864),
+    outline = Color(0xFFA6B3C0),
+    outlineVariant = Color(0xFFCBD6E0),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF7FAFD),
+    surfaceContainer = Color(0xFFF0F4F8),
+    surfaceContainerHigh = Color(0xFFEBF0F5),
+    surfaceContainerHighest = Color(0xFFE5EBF1),
+    inverseSurface = Color(0xFF303640),
+    inverseOnSurface = Color(0xFFEDF1F7),
+    inversePrimary = Color(0xFF089B74)
+)

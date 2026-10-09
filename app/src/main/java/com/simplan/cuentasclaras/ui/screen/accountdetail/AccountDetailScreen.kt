@@ -12,9 +12,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -25,6 +26,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -32,9 +34,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -46,10 +50,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -71,6 +73,7 @@ import java.util.Date
 fun AccountDetailScreen(
     accountId: Long,
     onNavigateBack: () -> Unit,
+    onNavigateToAccountHistory: (Long) -> Unit,
     viewModel: AccountDetailViewModel = hiltViewModel()
 ) {
     val account by viewModel.account.collectAsStateWithLifecycle()
@@ -90,7 +93,7 @@ fun AccountDetailScreen(
     var editIsOpen by remember { mutableStateOf(true) }
     var expanded by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
-    var showExportConfirm by remember { mutableStateOf(false) }
+    var showExportOptions by remember { mutableStateOf(false) }
     var entryEditing by remember { mutableStateOf<Entry?>(null) }
     var editEntryAmount by remember { mutableStateOf("") }
     var editEntryNote by remember { mutableStateOf("") }
@@ -98,6 +101,39 @@ fun AccountDetailScreen(
     var entryDeleting by remember { mutableStateOf<Entry?>(null) }
 
     val currencies = Currency.all
+
+    val incomeGreen = MaterialTheme.colorScheme.primary
+    val expenseRed = MaterialTheme.colorScheme.error
+
+    val totalIncome = entries.filter { it.isIncome }.sumOf { it.amountCents }
+    val totalExpense = entries.filter { !it.isIncome }.sumOf { it.amountCents }
+    val totalNet = totalIncome - totalExpense
+
+    fun startExport(format: String) {
+        showExportOptions = false
+        scope.launch {
+            val result = if (format == "PDF") {
+                viewModel.exportAccountPdf()
+            } else {
+                viewModel.exportAccount()
+            }
+            if (result.isSuccess()) {
+                val uri = result.getOrThrow()
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = if (format == "PDF") "application/pdf" else "text/csv"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    putExtra(
+                        Intent.EXTRA_SUBJECT,
+                        "Cuenta ${account?.name ?: ""} - Cuentas Claras"
+                    )
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(
+                    Intent.createChooser(send, "Compartir exportación")
+                )
+            }
+        }
+    }
 
     // Cargar cuenta al entrar
     LaunchedEffect(accountId) {
@@ -122,7 +158,8 @@ fun AccountDetailScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         },
@@ -152,41 +189,47 @@ fun AccountDetailScreen(
                         Column(modifier = Modifier.padding(24.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(
+                                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f),
+                                            CircleShape
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     Icon(
                                         imageVector = Icons.accountBalanceWallet(),
                                         contentDescription = "Cuenta",
                                         tint = MaterialTheme.colorScheme.onPrimaryContainer
                                     )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        text = acc.name,
-                                        fontSize = 24.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
                                 }
-                                if (acc.isDefault) {
-                                    Box(
-                                        modifier = Modifier
-                                            .background(
-                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                                RoundedCornerShape(8.dp)
-                                            )
-                                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                                    ) {
-                                        Text(
-                                            "Predeterminada",
-                                            fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = acc.name,
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
                             }
                             Spacer(modifier = Modifier.height(16.dp))
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Estado: ",
+                                    fontSize = 16.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                )
+                                Text(
+                                    text = if (acc.isOpen) "Abierta" else "Cerrada",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (acc.isOpen) incomeGreen else expenseRed
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
@@ -199,29 +242,6 @@ fun AccountDetailScreen(
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "Estado: ",
-                                    fontSize = 16.sp,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                                )
-                                Switch(
-                                    checked = acc.isOpen,
-                                    onCheckedChange = null,
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.Green,
-                                        checkedTrackColor = Color.Green.copy(alpha = 0.3f)
-                                    )
-                                )
-                                Text(
-                                    text = if (acc.isOpen) "Abierta" else "Cerrada",
-                                    fontSize = 16.sp,
-                                    color = if (acc.isOpen) Color.Green else Color.Red,
-                                    fontWeight = FontWeight.Medium
                                 )
                             }
                             Spacer(modifier = Modifier.height(8.dp))
@@ -276,7 +296,7 @@ fun AccountDetailScreen(
                             val entryDateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", appLocale)
                             entries.sortedByDescending { it.date }.forEach { entry ->
                                 val sign = if (entry.isIncome) "+" else "-"
-                                val typeColor = if (entry.isIncome) Color.Green else Color.Red
+                                val typeColor = if (entry.isIncome) incomeGreen else expenseRed
                                 Card(modifier = Modifier.fillMaxWidth()) {
                                     Row(
                                         modifier = Modifier
@@ -298,7 +318,7 @@ fun AccountDetailScreen(
                                                 maxLines = 2
                                             )
                                             Text(
-                                                text = if (entry.isIncome) "Ingreso" else "Gasto",
+                                                text = if (entry.isIncome) "Entrada" else "Salida",
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = typeColor
@@ -327,7 +347,7 @@ fun AccountDetailScreen(
                                             Icon(
                                                 Icons.delete(),
                                                 contentDescription = "Eliminar movimiento",
-                                                tint = Color.Red
+                                                tint = expenseRed
                                             )
                                         }
                                     }
@@ -368,7 +388,7 @@ fun AccountDetailScreen(
                                     Text("Editar")
                                 }
                                 Button(
-                                    onClick = { showExportConfirm = true },
+                                    onClick = { showExportOptions = true },
                                     modifier = Modifier.weight(1f),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -382,13 +402,27 @@ fun AccountDetailScreen(
                             }
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            if (!acc.isDefault) {
+                            Button(
+                                onClick = { onNavigateToAccountHistory(acc.id) },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            ) {
+                                Icon(Icons.calendarMonth(), contentDescription = "Historial")
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Ver historial y estadísticas")
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            if (!acc.isOpen || !acc.isDefault) {
                                 Button(
                                     onClick = { showDeleteConfirm = true },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color.Red,
-                                        contentColor = Color.White
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                        contentColor = MaterialTheme.colorScheme.onError
                                     )
                                 ) {
                                     Icon(Icons.delete(), contentDescription = "Eliminar")
@@ -397,7 +431,8 @@ fun AccountDetailScreen(
                                 }
                             } else {
                                 Text(
-                                    text = "Esta es la cuenta predeterminada. Selecciona otra como predeterminada para poder eliminarla.",
+                                    text = "Esta es la cuenta principal y está abierta. " +
+                                        "Selecciona otra como principal en Administrar cuentas para poder eliminarla.",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center,
@@ -409,11 +444,11 @@ fun AccountDetailScreen(
                         }
                     }
 
-                    // ---------- Info adicional ----------
+                    // ---------- Resumen ----------
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(
-                                text = "Información adicional",
+                                text = "Resumen",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -424,15 +459,15 @@ fun AccountDetailScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    "ID de la cuenta",
+                                    "Total de entradas",
                                     fontSize = 14.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
-                                    "#${acc.id}",
+                                    "+ ${Money.format(totalIncome, acc.currency)}",
                                     fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    fontFamily = FontFamily.Monospace
+                                    fontWeight = FontWeight.Bold,
+                                    color = incomeGreen
                                 )
                             }
                             Spacer(modifier = Modifier.height(8.dp))
@@ -442,14 +477,39 @@ fun AccountDetailScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    "Orden",
+                                    "Total de salidas",
                                     fontSize = 14.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
-                                    "${acc.sortOrder}",
+                                    "- ${Money.format(totalExpense, acc.currency)}",
                                     fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Bold,
+                                    color = expenseRed
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            HorizontalDivider()
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    "Neto de la cuenta",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    if (totalNet >= 0) {
+                                        "+ ${Money.format(totalNet, acc.currency)}"
+                                    } else {
+                                        Money.format(totalNet, acc.currency)
+                                    },
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (totalNet >= 0) incomeGreen else expenseRed
                                 )
                             }
                         }
@@ -531,8 +591,8 @@ fun AccountDetailScreen(
                             checked = editIsOpen,
                             onCheckedChange = { editIsOpen = it },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.Green,
-                                checkedTrackColor = Color.Green.copy(alpha = 0.3f)
+                                checkedThumbColor = incomeGreen,
+                                checkedTrackColor = incomeGreen.copy(alpha = 0.3f)
                             )
                         )
                     }
@@ -588,9 +648,9 @@ fun AccountDetailScreen(
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Eliminar", color = Color.White)
+                    Text("Eliminar", color = MaterialTheme.colorScheme.onError)
                 }
             },
             dismissButton = {
@@ -602,46 +662,84 @@ fun AccountDetailScreen(
     }
 
     // ---------- Diálogo exportar ----------
-    if (showExportConfirm) {
+    if (showExportOptions) {
         AlertDialog(
-            onDismissRequest = { showExportConfirm = false },
+            onDismissRequest = { showExportOptions = false },
             title = { Text("Exportar cuenta") },
             text = {
-                Text(
-                    "Se generará un archivo CSV con todos los movimientos de esta cuenta " +
-                        "y se abrirá el menú para compartirlo.",
-                    modifier = Modifier.padding(8.dp)
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        scope.launch {
-                            val result = viewModel.exportAccount()
-                            if (result.isSuccess()) {
-                                val uri = result.getOrThrow()
-                                val send = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/csv"
-                                    putExtra(Intent.EXTRA_STREAM, uri)
-                                    putExtra(
-                                        Intent.EXTRA_SUBJECT,
-                                        "Cuenta ${account?.name ?: ""} - Cuentas Claras"
-                                    )
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                showExportConfirm = false
-                                context.startActivity(
-                                    Intent.createChooser(send, "Compartir exportación")
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "Se generará un archivo con los movimientos y se abrirá el menú para compartirlo.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Surface(
+                        onClick = { startExport("CSV") },
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Icon(
+                                Icons.fileDownload(),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    "CSV (hoja de cálculo)",
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    "Se abre en Excel o Google Sheets",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
                     }
-                ) {
-                    Text("Compartir")
+                    Surface(
+                        onClick = { startExport("PDF") },
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Icon(
+                                Icons.fileDownload(),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    "PDF (documento)",
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    "Para imprimir o compartir como archivo fijo",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
                 }
             },
-            dismissButton = {
-                Button(onClick = { showExportConfirm = false }) {
+            confirmButton = {
+                TextButton(onClick = { showExportOptions = false }) {
                     Text("Cancelar")
                 }
             }
@@ -666,13 +764,13 @@ fun AccountDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(if (editEntryIsIncome) "Ingreso" else "Gasto", fontSize = 16.sp)
+                        Text(if (editEntryIsIncome) "Entrada" else "Salida", fontSize = 16.sp)
                         Switch(
                             checked = editEntryIsIncome,
                             onCheckedChange = { editEntryIsIncome = it },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.Green,
-                                checkedTrackColor = Color.Green.copy(alpha = 0.3f)
+                                checkedThumbColor = incomeGreen,
+                                checkedTrackColor = incomeGreen.copy(alpha = 0.3f)
                             )
                         )
                     }
@@ -761,9 +859,9 @@ fun AccountDetailScreen(
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Eliminar", color = Color.White)
+                    Text("Eliminar", color = MaterialTheme.colorScheme.onError)
                 }
             },
             dismissButton = {

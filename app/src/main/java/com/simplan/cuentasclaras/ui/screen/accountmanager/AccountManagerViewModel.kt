@@ -40,19 +40,28 @@ class AccountManagerViewModel @Inject constructor(
         loadAccounts()
     }
 
+    fun refresh() {
+        loadAccounts()
+    }
+
     private fun loadAccounts() {
         viewModelScope.launch {
             _isLoading.value = true
             val accountsResult = accountUseCases.getAllAccounts()
-            if (accountsResult.isSuccess()) {
-                _accounts.value = accountsResult.getOrNull() ?: emptyList()
+            val accounts = if (accountsResult.isSuccess()) {
+                accountsResult.getOrNull() ?: emptyList()
+            } else {
+                emptyList()
             }
+            _accounts.value = accounts
             val settingsResult = settingsUseCases.getSettings()
-            if (settingsResult.isSuccess()) {
-                val settings = settingsResult.getOrNull()
-                _defaultAccountId.value = settings?.defaultAccountId ?: 0L
-                _maxOpenAccounts.value = (settings?.maxOpenAccounts ?: 10).coerceAtLeast(1)
-            }
+            val settings = settingsResult.getOrNull()
+            _maxOpenAccounts.value = (settings?.maxOpenAccounts ?: 10).coerceAtLeast(1)
+            _defaultAccountId.value = accounts
+                .firstOrNull { it.isOpen && it.isDefault }
+                ?.id
+                ?: settings?.defaultAccountId
+                ?: 0L
             _isLoading.value = false
         }
     }
@@ -150,8 +159,19 @@ class AccountManagerViewModel @Inject constructor(
 
     suspend fun closeAccount(id: Long): Result<Unit> {
         _isLoading.value = true
+        val wasDefault = id == _defaultAccountId.value
         val result = accountUseCases.closeAccount(id)
         if (result.isSuccess()) {
+            if (wasDefault) {
+                val nextDefault = _accounts.value.firstOrNull { it.id != id && it.isOpen }
+                if (nextDefault != null) {
+                    accountUseCases.setDefaultAccount(nextDefault.id)
+                } else {
+                    settingsUseCases.getSettings().getOrNull()?.let {
+                        settingsUseCases.saveSettings(it.copyWith(defaultAccountId = 0L))
+                    }
+                }
+            }
             loadAccounts()
         } else {
             _error.value = result.errorMessage ?: "Error al cerrar la cuenta"

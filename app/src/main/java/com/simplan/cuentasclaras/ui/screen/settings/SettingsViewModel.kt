@@ -145,6 +145,16 @@ class SettingsViewModel @Inject constructor(
         return saveSettings(current.copyWith(maxOpenAccounts = value.coerceAtLeast(1)))
     }
 
+    suspend fun updateCurrencyCode(code: String): Result<Unit> {
+        val current = _settings.value ?: return Result.success(Unit)
+        return saveSettings(current.copyWith(currencyCode = code))
+    }
+
+    suspend fun updateThemeMode(mode: Settings.ThemeMode): Result<Unit> {
+        val current = _settings.value ?: return Result.success(Unit)
+        return saveSettings(current.copyWith(themeMode = mode))
+    }
+
     suspend fun addQuickAmount(amount: QuickAmount): Result<Long> {
         _isLoading.value = true
         val result = quickAmountUseCases.insert(amount)

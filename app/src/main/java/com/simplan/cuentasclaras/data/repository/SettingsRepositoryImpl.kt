@@ -23,7 +23,7 @@ class SettingsRepositoryImpl(
     }
 
     override suspend fun save(settings: Settings): Result<Unit> = try {
-        settingsDao.update(settings.toEntity())
+        settingsDao.insert(settings.toEntity())
         Result.success(Unit)
     } catch (e: Exception) {
         Result.error(e)

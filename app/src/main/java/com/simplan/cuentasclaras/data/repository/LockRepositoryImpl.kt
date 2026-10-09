@@ -110,7 +110,7 @@ class LockRepositoryImpl(
 
     override suspend fun lock(): Result<Unit> = try {
         val entity = lockDao.getSuspend() ?: LockEntity()
-        lockDao.update(entity.copy(isLocked = true))
+        lockDao.insert(entity.copy(isLocked = true))
         Result.success(Unit)
     } catch (e: Exception) {
         Result.error(e)
@@ -126,10 +126,10 @@ class LockRepositoryImpl(
             decryptedPin == pin
         }
         if (isValid) {
-            lockDao.update(entity.copy(isLocked = false, failedAttempts = 0))
+            lockDao.insert(entity.copy(isLocked = false, failedAttempts = 0))
         } else {
             val newAttempts = entity.failedAttempts + 1
-            lockDao.update(entity.copy(failedAttempts = newAttempts, lastFailedAt = System.currentTimeMillis()))
+            lockDao.insert(entity.copy(failedAttempts = newAttempts, lastFailedAt = System.currentTimeMillis()))
         }
         Result.success(isValid)
     } catch (e: Exception) {
@@ -141,7 +141,7 @@ class LockRepositoryImpl(
     override suspend fun setPin(pin: String): Result<Unit> = try {
         val entity = lockDao.getSuspend() ?: LockEntity()
         val encryptedPin = encryptPin(pin)
-        lockDao.update(entity.copy(pinHash = encryptedPin))
+        lockDao.insert(entity.copy(pinHash = encryptedPin))
         Result.success(Unit)
     } catch (e: Exception) {
         Result.error(e)
@@ -165,7 +165,7 @@ class LockRepositoryImpl(
     override suspend fun isBiometricAvailable(): Result<Boolean> = try {
         val biometricManager = BiometricManager.from(context)
         val canAuthenticate = biometricManager.canAuthenticate(
-            BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            BiometricManager.Authenticators.BIOMETRIC_STRONG
         ) == BiometricManager.BIOMETRIC_SUCCESS
         Result.success(canAuthenticate)
     } catch (e: Exception) {
@@ -183,7 +183,7 @@ class LockRepositoryImpl(
 
     override suspend fun setBiometricEnabled(enabled: Boolean): Result<Unit> = try {
         val entity = lockDao.getSuspend() ?: LockEntity()
-        lockDao.update(entity.copy(biometricEnabled = enabled))
+        lockDao.insert(entity.copy(biometricEnabled = enabled))
         Result.success(Unit)
     } catch (e: Exception) {
         Result.error(e)
@@ -198,7 +198,7 @@ class LockRepositoryImpl(
 
     override suspend fun setAutoLockDelay(minutes: Int): Result<Unit> = try {
         val entity = lockDao.getSuspend() ?: LockEntity()
-        lockDao.update(entity.copy(autoLockDelayMinutes = minutes))
+        lockDao.insert(entity.copy(autoLockDelayMinutes = minutes))
         Result.success(Unit)
     } catch (e: Exception) {
         Result.error(e)
@@ -213,7 +213,7 @@ class LockRepositoryImpl(
 
     override suspend fun incrementFailedAttempts(): Result<Unit> = try {
         val entity = lockDao.getSuspend() ?: LockEntity()
-        lockDao.update(entity.copy(failedAttempts = entity.failedAttempts + 1, lastFailedAt = System.currentTimeMillis()))
+        lockDao.insert(entity.copy(failedAttempts = entity.failedAttempts + 1, lastFailedAt = System.currentTimeMillis()))
         Result.success(Unit)
     } catch (e: Exception) {
         Result.error(e)
@@ -221,7 +221,7 @@ class LockRepositoryImpl(
 
     override suspend fun resetFailedAttempts(): Result<Unit> = try {
         val entity = lockDao.getSuspend() ?: LockEntity()
-        lockDao.update(entity.copy(failedAttempts = 0))
+        lockDao.insert(entity.copy(failedAttempts = 0))
         Result.success(Unit)
     } catch (e: Exception) {
         Result.error(e)

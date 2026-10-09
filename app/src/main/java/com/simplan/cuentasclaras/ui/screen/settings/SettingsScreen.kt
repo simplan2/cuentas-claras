@@ -1,6 +1,7 @@
 package com.simplan.cuentasclaras.ui.screen.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +55,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.simplan.cuentasclaras.common.Currency
 import com.simplan.cuentasclaras.common.Money
 import com.simplan.cuentasclaras.domain.entity.QuickAmount
+import com.simplan.cuentasclaras.domain.entity.Settings
 import com.simplan.cuentasclaras.ui.Icons
 import kotlinx.coroutines.launch
 
@@ -90,8 +92,11 @@ fun SettingsScreen(
     var showRemovePinConfirm by remember { mutableStateOf(false) }
     var showMaxAccountsDialog by remember { mutableStateOf(false) }
     var maxAccountsInput by remember { mutableStateOf("10") }
+    var showCurrencyDialog by remember { mutableStateOf(false) }
+    var showThemeDialog by remember { mutableStateOf(false) }
 
     val currency = settings?.currency ?: Currency.PEN
+    val themeMode = settings?.themeMode ?: Settings.ThemeMode.SYSTEM
 
     // Mostrar errores por snackbar
     LaunchedEffect(error) {
@@ -111,7 +116,8 @@ fun SettingsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         },
@@ -137,11 +143,13 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(12.dp))
 
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showCurrencyDialog = true },
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text("Moneda predeterminada", fontSize = 16.sp)
                                 Text(
                                     text = "${currency.name} (${currency.symbol})",
@@ -149,6 +157,11 @@ fun SettingsScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                            Icon(
+                                Icons.chevronRight(),
+                                contentDescription = "Cambiar moneda",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                         HorizontalDivider()
@@ -200,6 +213,38 @@ fun SettingsScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                             }
+                        }
+                    }
+                }
+
+                // ---------- Apariencia ----------
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Apariencia", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showThemeDialog = true },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Tema", fontSize = 16.sp)
+                                Text(
+                                    text = themeModeLabel(themeMode),
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Icon(
+                                Icons.chevronRight(),
+                                contentDescription = "Cambiar tema",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -256,7 +301,7 @@ fun SettingsScreen(
                                     Text("Cambiar")
                                 }
                                 TextButton(onClick = { showRemovePinConfirm = true }) {
-                                    Text("Eliminar")
+                                    Text("Quitar")
                                 }
                             } else {
                                 TextButton(onClick = {
@@ -317,7 +362,7 @@ fun SettingsScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Valores predefinidos para ingreso/salida rápido",
+                                    text = "Valores predefinidos para entrada/salida rápido",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -804,4 +849,115 @@ fun SettingsScreen(
             }
         )
     }
+
+    // ---------- Diálogo moneda predeterminada ----------
+    if (showCurrencyDialog) {
+        AlertDialog(
+            onDismissRequest = { showCurrencyDialog = false },
+            title = { Text("Moneda predeterminada") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Se usará en los montos rápidos y como sugerencia al crear cuentas.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Currency.all.forEach { c ->
+                        val selected = c.code == currency.code
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    scope.launch {
+                                        viewModel.updateCurrencyCode(c.code)
+                                        showCurrencyDialog = false
+                                    }
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "${c.name} (${c.symbol})",
+                                    fontSize = 15.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                            if (selected) {
+                                Icon(
+                                    Icons.check(),
+                                    contentDescription = "Seleccionada",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCurrencyDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // ---------- Diálogo tema ----------
+    if (showThemeDialog) {
+        AlertDialog(
+            onDismissRequest = { showThemeDialog = false },
+            title = { Text("Tema") },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Settings.ThemeMode.values().forEach { mode ->
+                        val selected = mode == themeMode
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    scope.launch {
+                                        viewModel.updateThemeMode(mode)
+                                        showThemeDialog = false
+                                    }
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = themeModeLabel(mode),
+                                    fontSize = 15.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                            if (selected) {
+                                Icon(
+                                    Icons.check(),
+                                    contentDescription = "Seleccionado",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showThemeDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+}
+
+private fun themeModeLabel(mode: Settings.ThemeMode): String = when (mode) {
+    Settings.ThemeMode.LIGHT -> "Claro"
+    Settings.ThemeMode.DARK -> "Oscuro"
+    Settings.ThemeMode.SYSTEM -> "Sistema"
 }

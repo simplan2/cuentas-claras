@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -23,6 +24,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -82,16 +84,41 @@ fun LockScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(32.dp),
+                        .padding(28.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // ---------- Salir ----------
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(
+                            onClick = {
+                                activity?.finishAndRemoveTask()
+                                activity?.finishAffinity()
+                            }
+                        ) {
+                            Text("Salir")
+                        }
+                    }
+
                     // ---------- Icono + textos ----------
+                    Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = androidx.compose.foundation.shape.CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
                     Icon(
                         imageVector = Icons.lock(),
                         contentDescription = "Bloqueado",
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(64.dp)
+                        modifier = Modifier.size(36.dp)
                     )
+                }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -111,18 +138,19 @@ fun LockScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // ---------- Puntos del PIN (6) ----------
+                    // ---------- Puntos del PIN (según longitud real) ----------
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        (1..6).forEach { index ->
+                        (1..pinLength).forEach { index ->
                             Box(
                                 modifier = Modifier
-                                    .size(48.dp)
+                                    .size(16.dp)
                                     .background(
                                         if (index <= pin.length) {
                                             MaterialTheme.colorScheme.primary
                                         } else {
-                                            MaterialTheme.colorScheme.outline
-                                        }
+                                            MaterialTheme.colorScheme.outlineVariant
+                                        },
+                                        shape = CircleShape
                                     )
                             )
                         }
@@ -219,7 +247,6 @@ fun LockScreen(
                                             .setNegativeButtonText("Usar PIN")
                                             .setAllowedAuthenticators(
                                                 BiometricManager.Authenticators.BIOMETRIC_STRONG
-                                                    or BiometricManager.Authenticators.DEVICE_CREDENTIAL
                                             )
                                             .build()
                                     )
@@ -263,7 +290,8 @@ private fun PinButton(
 ) {
     Button(
         onClick = onClick,
-        modifier = Modifier.size(72.dp),
+        modifier = Modifier.size(64.dp),
+        shape = CircleShape,
         contentPadding = ButtonDefaults.ContentPadding,
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -274,7 +302,7 @@ private fun PinButton(
             icon != null -> icon()
             text != null -> Text(
                 text = text,
-                fontSize = 24.sp,
+                fontSize = 26.sp,
                 fontWeight = FontWeight.Bold
             )
         }

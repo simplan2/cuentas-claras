@@ -143,4 +143,7 @@ object Icons {
 
     @Composable
     fun chevronRight(): ImageVector = ImageVector.vectorResource(id = R.drawable.ic_chevron_right)
+
+    @Composable
+    fun chevronLeft(): ImageVector = ImageVector.vectorResource(id = R.drawable.ic_chevron_left)
 }

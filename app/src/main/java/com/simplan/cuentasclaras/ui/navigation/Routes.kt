@@ -15,6 +15,9 @@ sealed interface Routes {
     data class AccountDetail(val accountId: Long) : Routes
 
     @Serializable
+    data class AccountHistory(val accountId: Long) : Routes
+
+    @Serializable
     data object Settings : Routes
 
     @Serializable
