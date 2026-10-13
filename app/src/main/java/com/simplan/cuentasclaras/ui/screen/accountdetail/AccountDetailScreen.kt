@@ -3,6 +3,7 @@ package com.simplan.cuentasclaras.ui.screen.accountdetail
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -62,6 +64,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.simplan.cuentasclaras.common.Currency
 import com.simplan.cuentasclaras.common.Money
+import com.simplan.cuentasclaras.domain.entity.Category
 import com.simplan.cuentasclaras.domain.entity.Entry
 import com.simplan.cuentasclaras.ui.Icons
 import kotlinx.coroutines.launch
@@ -98,6 +101,7 @@ fun AccountDetailScreen(
     var editEntryAmount by remember { mutableStateOf("") }
     var editEntryNote by remember { mutableStateOf("") }
     var editEntryIsIncome by remember { mutableStateOf(true) }
+    var editEntryCategoryId by remember { mutableStateOf(0L) }
     var entryDeleting by remember { mutableStateOf<Entry?>(null) }
 
     val currencies = Currency.all
@@ -323,6 +327,13 @@ fun AccountDetailScreen(
                                                 fontWeight = FontWeight.Bold,
                                                 color = typeColor
                                             )
+                                            Category.labelOf(entry.categoryId)?.let { categoryLabel ->
+                                                Text(
+                                                    text = categoryLabel,
+                                                    fontSize = 12.sp,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
                                         }
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
@@ -337,6 +348,7 @@ fun AccountDetailScreen(
                                                 (entry.amountCents / 100.0).toString()
                                             editEntryNote = entry.note
                                             editEntryIsIncome = entry.isIncome
+                                            editEntryCategoryId = entry.categoryId
                                         }) {
                                             Icon(
                                                 Icons.edit(),
@@ -346,8 +358,7 @@ fun AccountDetailScreen(
                                         IconButton(onClick = { entryDeleting = entry }) {
                                             Icon(
                                                 Icons.delete(),
-                                                contentDescription = "Eliminar movimiento",
-                                                tint = expenseRed
+                                                contentDescription = "Eliminar movimiento"
                                             )
                                         }
                                     }
@@ -799,6 +810,22 @@ fun AccountDetailScreen(
                         ),
                         singleLine = true
                     )
+
+                    Text("Categoría", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Category.entries.forEach { category ->
+                            FilterChip(
+                                selected = editEntryCategoryId == category.id,
+                                onClick = { editEntryCategoryId = category.id },
+                                label = { Text(category.label) }
+                            )
+                        }
+                    }
                 }
             },
             confirmButton = {
@@ -815,7 +842,8 @@ fun AccountDetailScreen(
                                 Entry.EntryType.INCOME
                             else
                                 Entry.EntryType.EXPENSE,
-                            note = editEntryNote.trim()
+                            note = editEntryNote.trim(),
+                            categoryId = editEntryCategoryId
                         )
                         scope.launch {
                             val result = viewModel.updateEntry(updatedEntry)

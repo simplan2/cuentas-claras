@@ -1,6 +1,7 @@
 package com.simplan.cuentasclaras.di
 
 import com.simplan.cuentasclaras.domain.repository.AccountRepository
+import com.simplan.cuentasclaras.domain.repository.BackupRepository
 import com.simplan.cuentasclaras.domain.repository.EntryRepository
 import com.simplan.cuentasclaras.domain.repository.LockRepository
 import com.simplan.cuentasclaras.domain.repository.QuickAmountRepository
@@ -29,10 +30,14 @@ import com.simplan.cuentasclaras.domain.usecase.lock.UnlockWithPinUseCase
 import com.simplan.cuentasclaras.domain.usecase.lock.UnlockWithPinUseCaseImpl
 import com.simplan.cuentasclaras.domain.usecase.lock.VerifyPinUseCase
 import com.simplan.cuentasclaras.domain.usecase.lock.VerifyPinUseCaseImpl
-import com.simplan.cuentasclaras.domain.usecase.lock.GetAutoLockDelayUseCase
-import com.simplan.cuentasclaras.domain.usecase.lock.GetAutoLockDelayUseCaseImpl
-import com.simplan.cuentasclaras.domain.usecase.lock.SetAutoLockDelayUseCase
-import com.simplan.cuentasclaras.domain.usecase.lock.SetAutoLockDelayUseCaseImpl
+import com.simplan.cuentasclaras.domain.usecase.lock.VerifyRecoveryCodeUseCase
+import com.simplan.cuentasclaras.domain.usecase.lock.VerifyRecoveryCodeUseCaseImpl
+import com.simplan.cuentasclaras.domain.usecase.lock.GetFailedAttemptsUseCase
+import com.simplan.cuentasclaras.domain.usecase.lock.GetFailedAttemptsUseCaseImpl
+import com.simplan.cuentasclaras.domain.usecase.lock.ResetFailedAttemptsUseCase
+import com.simplan.cuentasclaras.domain.usecase.lock.ResetFailedAttemptsUseCaseImpl
+import com.simplan.cuentasclaras.domain.usecase.lock.GetLockoutRemainingUseCase
+import com.simplan.cuentasclaras.domain.usecase.lock.GetLockoutRemainingUseCaseImpl
 import com.simplan.cuentasclaras.domain.usecase.lock.IsBiometricAvailableUseCase
 import com.simplan.cuentasclaras.domain.usecase.lock.IsBiometricAvailableUseCaseImpl
 import com.simplan.cuentasclaras.domain.usecase.lock.IsBiometricEnabledUseCase
@@ -57,6 +62,8 @@ import com.simplan.cuentasclaras.domain.usecase.quickamount.QuickAmountUseCases
 import com.simplan.cuentasclaras.domain.usecase.quickamount.QuickAmountUseCasesImpl
 import com.simplan.cuentasclaras.domain.usecase.settings.SettingsUseCases
 import com.simplan.cuentasclaras.domain.usecase.settings.SettingsUseCasesImpl
+import com.simplan.cuentasclaras.domain.usecase.backup.BackupUseCases
+import com.simplan.cuentasclaras.domain.usecase.backup.BackupUseCasesImpl
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -83,6 +90,11 @@ object UseCaseModule {
     @Singleton
     fun provideSettingsUseCases(settingsRepository: SettingsRepository): SettingsUseCases =
         SettingsUseCasesImpl(settingsRepository)
+
+    @Provides
+    @Singleton
+    fun provideBackupUseCases(backupRepository: BackupRepository): BackupUseCases =
+        BackupUseCasesImpl(backupRepository)
 
     @Provides
     @Singleton
@@ -181,6 +193,11 @@ object UseCaseModule {
 
     @Provides
     @Singleton
+    fun provideVerifyRecoveryCodeUseCase(lockRepository: LockRepository): VerifyRecoveryCodeUseCase =
+        VerifyRecoveryCodeUseCaseImpl(lockRepository)
+
+    @Provides
+    @Singleton
     fun provideIsBiometricAvailableUseCase(lockRepository: LockRepository): IsBiometricAvailableUseCase =
         IsBiometricAvailableUseCaseImpl(lockRepository)
 
@@ -201,13 +218,18 @@ object UseCaseModule {
 
     @Provides
     @Singleton
-    fun provideGetAutoLockDelayUseCase(lockRepository: LockRepository): GetAutoLockDelayUseCase =
-        GetAutoLockDelayUseCaseImpl(lockRepository)
+    fun provideGetFailedAttemptsUseCase(lockRepository: LockRepository): GetFailedAttemptsUseCase =
+        GetFailedAttemptsUseCaseImpl(lockRepository)
 
     @Provides
     @Singleton
-    fun provideSetAutoLockDelayUseCase(lockRepository: LockRepository): SetAutoLockDelayUseCase =
-        SetAutoLockDelayUseCaseImpl(lockRepository)
+    fun provideResetFailedAttemptsUseCase(lockRepository: LockRepository): ResetFailedAttemptsUseCase =
+        ResetFailedAttemptsUseCaseImpl(lockRepository)
+
+    @Provides
+    @Singleton
+    fun provideGetLockoutRemainingUseCase(lockRepository: LockRepository): GetLockoutRemainingUseCase =
+        GetLockoutRemainingUseCaseImpl(lockRepository)
 
     @Provides
     @Singleton
@@ -220,12 +242,14 @@ object UseCaseModule {
         setPinUseCase: SetPinUseCase,
         clearPinUseCase: ClearPinUseCase,
         verifyPinUseCase: VerifyPinUseCase,
+        verifyRecoveryCodeUseCase: VerifyRecoveryCodeUseCase,
         isBiometricAvailableUseCase: IsBiometricAvailableUseCase,
         isBiometricEnabledUseCase: IsBiometricEnabledUseCase,
         authenticateWithBiometricUseCase: AuthenticateWithBiometricUseCase,
         setBiometricEnabledUseCase: SetBiometricEnabledUseCase,
-        getAutoLockDelayUseCase: GetAutoLockDelayUseCase,
-        setAutoLockDelayUseCase: SetAutoLockDelayUseCase
+        getFailedAttemptsUseCase: GetFailedAttemptsUseCase,
+        resetFailedAttemptsUseCase: ResetFailedAttemptsUseCase,
+        getLockoutRemainingUseCase: GetLockoutRemainingUseCase
     ): LockUseCases = LockUseCasesImpl(
         isLockedUseCase,
         hasPinUseCase,
@@ -235,11 +259,13 @@ object UseCaseModule {
         setPinUseCase,
         clearPinUseCase,
         verifyPinUseCase,
+        verifyRecoveryCodeUseCase,
         isBiometricAvailableUseCase,
         isBiometricEnabledUseCase,
         authenticateWithBiometricUseCase,
         setBiometricEnabledUseCase,
-        getAutoLockDelayUseCase,
-        setAutoLockDelayUseCase
+        getFailedAttemptsUseCase,
+        resetFailedAttemptsUseCase,
+        getLockoutRemainingUseCase
     )
 }

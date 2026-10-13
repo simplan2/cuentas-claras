@@ -53,4 +53,10 @@ interface EntryDao {
 
     @Query("DELETE FROM entries WHERE accountId = :accountId")
     suspend fun deleteByAccount(accountId: Long): Int
+
+    @Query("SELECT * FROM entries")
+    suspend fun getAllSuspend(): List<EntryEntity>
+
+    @Query("DELETE FROM entries")
+    suspend fun deleteAll(): Int
 }

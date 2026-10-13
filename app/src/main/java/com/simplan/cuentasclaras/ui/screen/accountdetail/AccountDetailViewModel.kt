@@ -1,9 +1,14 @@
 package com.simplan.cuentasclaras.ui.screen.accountdetail
 
 import android.content.Context
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
+import android.text.TextUtils
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -251,30 +256,49 @@ class AccountDetailViewModel @Inject constructor(
         val colAmount = margin + 230
         val colNote = margin + 340
         val rowHeight = 20
+        val noteWidth = pageWidth - margin - colNote
+        val bottomLimit = (pageHeight - margin).toFloat()
 
         val pdf = PdfDocument()
         try {
+            val titlePaint = Paint().apply {
+                color = Color.parseColor("#089B74")
+                textSize = 20f
+                isFakeBoldText = true
+            }
+            val labelPaint = Paint().apply {
+                color = Color.rgb(90, 90, 90)
+                textSize = 11f
+            }
+            val textPaint = Paint().apply {
+                color = Color.rgb(40, 40, 40)
+                textSize = 11f
+            }
+            val notePaint = TextPaint(textPaint)
+            val headerPaint = Paint().apply {
+                color = Color.rgb(230, 230, 230)
+            }
+
             var pageIndex = 1
             var page = pdf.startPage(
                 PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageIndex).create()
             )
             var y = (margin + 30).toFloat()
 
-            val titlePaint = Paint().apply {
-                color = android.graphics.Color.rgb(102, 80, 164)
-                textSize = 20f
-                isFakeBoldText = true
-            }
-            val labelPaint = Paint().apply {
-                color = android.graphics.Color.rgb(90, 90, 90)
-                textSize = 11f
-            }
-            val textPaint = Paint().apply {
-                color = android.graphics.Color.rgb(40, 40, 40)
-                textSize = 11f
-            }
-            val headerPaint = Paint().apply {
-                color = android.graphics.Color.rgb(230, 230, 230)
+            fun drawColumnHeader(canvas: android.graphics.Canvas, top: Float): Float {
+                canvas.drawRect(
+                    margin.toFloat(),
+                    top,
+                    (pageWidth - margin).toFloat(),
+                    top + rowHeight.toFloat(),
+                    headerPaint
+                )
+                val baseline = top + 14f
+                canvas.drawText("Fecha", colDate.toFloat(), baseline, textPaint)
+                canvas.drawText("Tipo", colType.toFloat(), baseline, textPaint)
+                canvas.drawText("Monto", colAmount.toFloat(), baseline, textPaint)
+                canvas.drawText("Nota", colNote.toFloat(), baseline, textPaint)
+                return top + rowHeight + 6f
             }
 
             page.canvas.drawText("Cuentas Claras", margin.toFloat(), y, titlePaint)
@@ -288,45 +312,46 @@ class AccountDetailViewModel @Inject constructor(
                 labelPaint
             )
             y += 12f
-
-            page.canvas.drawRect(
-                margin.toFloat(),
-                y,
-                (pageWidth - margin).toFloat(),
-                y + rowHeight.toFloat(),
-                headerPaint
-            )
-            page.canvas.drawText("Fecha", colDate.toFloat(), y + 14f, textPaint)
-            page.canvas.drawText("Tipo", colType.toFloat(), y + 14f, textPaint)
-            page.canvas.drawText("Monto", colAmount.toFloat(), y + 14f, textPaint)
-            page.canvas.drawText("Nota", colNote.toFloat(), y + 14f, textPaint)
-            y += (rowHeight + 6).toFloat()
+            y = drawColumnHeader(page.canvas, y)
 
             entries.forEach { entry ->
-                if (y > (pageHeight - margin).toFloat()) {
+                val note = entry.note.ifBlank { "Sin concepto" }
+                val noteLayout = StaticLayout.Builder
+                    .obtain(note, 0, note.length, notePaint, noteWidth)
+                    .setMaxLines(3)
+                    .setEllipsize(TextUtils.TruncateAt.END)
+                    .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                    .build()
+                val dynamicRowHeight = maxOf(rowHeight.toFloat(), noteLayout.height.toFloat() + 4f)
+
+                if (y + dynamicRowHeight > bottomLimit) {
                     pdf.finishPage(page)
                     pageIndex++
                     page = pdf.startPage(
                         PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageIndex).create()
                     )
                     y = (margin + 30).toFloat()
+                    y = drawColumnHeader(page.canvas, y)
                 }
+
                 val canvas = page.canvas
                 val type = if (entry.isIncome) "Entrada" else "Salida"
                 val amountText = (if (entry.isIncome) "+" else "-") +
                     String.format(Locale.US, "%.2f", entry.amountCents / 100.0)
+                val baseline = y + 14f
                 canvas.drawText(
                     dateFormat.format(Date(entry.date)),
                     colDate.toFloat(),
-                    y,
+                    baseline,
                     textPaint
                 )
-                canvas.drawText(type, colType.toFloat(), y, textPaint)
-                canvas.drawText(amountText, colAmount.toFloat(), y, textPaint)
-                val note = entry.note.ifBlank { "Sin concepto" }
-                val clipped = if (note.length > 34) note.substring(0, 33) + "…" else note
-                canvas.drawText(clipped, colNote.toFloat(), y, textPaint)
-                y += rowHeight.toFloat()
+                canvas.drawText(type, colType.toFloat(), baseline, textPaint)
+                canvas.drawText(amountText, colAmount.toFloat(), baseline, textPaint)
+                canvas.save()
+                canvas.translate(colNote.toFloat(), y)
+                noteLayout.draw(canvas)
+                canvas.restore()
+                y += dynamicRowHeight
             }
             pdf.finishPage(page)
 

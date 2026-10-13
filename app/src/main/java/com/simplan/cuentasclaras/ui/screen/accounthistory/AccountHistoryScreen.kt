@@ -2,6 +2,7 @@ package com.simplan.cuentasclaras.ui.screen.accounthistory
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,10 +18,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -42,6 +45,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.simplan.cuentasclaras.common.Currency
 import com.simplan.cuentasclaras.common.Money
+import com.simplan.cuentasclaras.domain.entity.Category
 import com.simplan.cuentasclaras.domain.entity.Entry
 import com.simplan.cuentasclaras.ui.Icons
 import java.text.SimpleDateFormat
@@ -64,6 +68,10 @@ fun AccountHistoryScreen(
     val monthlyTotals by viewModel.monthlyTotals.collectAsStateWithLifecycle(emptyList())
     val selectedMonth by viewModel.selectedMonth.collectAsStateWithLifecycle()
     val entries by viewModel.entries.collectAsStateWithLifecycle(emptyList())
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle("")
+    val typeFilter by viewModel.typeFilter.collectAsStateWithLifecycle(EntryTypeFilter.ALL)
+    val categoryFilter by viewModel.categoryFilter.collectAsStateWithLifecycle(null)
+    val filteredEntries by viewModel.filteredEntries.collectAsStateWithLifecycle(emptyList())
     val error by viewModel.error.collectAsStateWithLifecycle(null)
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -319,16 +327,82 @@ fun AccountHistoryScreen(
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
 
-                                if (entries.isEmpty()) {
+                                OutlinedTextField(
+                                    value = searchQuery,
+                                    onValueChange = { viewModel.setSearchQuery(it) },
+                                    placeholder = { Text("Buscar por concepto") },
+                                    leadingIcon = {
+                                        Icon(Icons.search(), contentDescription = null)
+                                    },
+                                    trailingIcon = {
+                                        if (searchQuery.isNotEmpty()) {
+                                            IconButton(
+                                                onClick = { viewModel.setSearchQuery("") }
+                                            ) {
+                                                Icon(
+                                                    Icons.close(),
+                                                    contentDescription = "Limpiar"
+                                                )
+                                            }
+                                        }
+                                    },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    EntryTypeFilter.entries.forEach { type ->
+                                        FilterChip(
+                                            selected = typeFilter == type,
+                                            onClick = { viewModel.setTypeFilter(type) },
+                                            label = { Text(type.label) }
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    FilterChip(
+                                        selected = categoryFilter == null,
+                                        onClick = { viewModel.setCategoryFilter(null) },
+                                        label = { Text("Todas") }
+                                    )
+                                    Category.selectable.forEach { category ->
+                                        FilterChip(
+                                            selected = categoryFilter == category.id,
+                                            onClick = {
+                                                viewModel.setCategoryFilter(category.id)
+                                            },
+                                            label = { Text(category.label) }
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                if (filteredEntries.isEmpty()) {
                                     Text(
-                                        text = "Sin movimientos en este mes",
+                                        text = if (entries.isEmpty())
+                                            "Sin movimientos en este mes"
+                                        else
+                                            "Sin resultados para el filtro",
                                         fontSize = 14.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
 
                                 val dateFormat = SimpleDateFormat("dd/MM/yyyy")
-                                entries.sortedByDescending { it.date }.forEach { entry ->
+                                filteredEntries.sortedByDescending { it.date }.forEach { entry ->
                                     MovimientoFila(
                                         entry = entry,
                                         dateFormat = dateFormat,
@@ -398,6 +472,13 @@ private fun MovimientoFila(
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium
             )
+            Category.labelOf(entry.categoryId)?.let { categoryLabel ->
+                Text(
+                    text = categoryLabel,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
         Spacer(modifier = Modifier.width(8.dp))
         Text(

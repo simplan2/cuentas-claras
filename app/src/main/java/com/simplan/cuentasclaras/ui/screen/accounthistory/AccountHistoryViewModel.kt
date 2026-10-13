@@ -11,10 +11,20 @@ import com.simplan.cuentasclaras.domain.usecase.entry.EntryUseCases
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import javax.inject.Inject
+
+enum class EntryTypeFilter(val label: String) {
+    ALL("Todos"),
+    INCOME("Entradas"),
+    EXPENSE("Salidas")
+}
 
 @HiltViewModel
 class AccountHistoryViewModel @Inject constructor(
@@ -36,6 +46,31 @@ class AccountHistoryViewModel @Inject constructor(
 
     private val _entries = MutableStateFlow<List<Entry>>(emptyList())
     val entries = _entries.asStateFlow()
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery = _searchQuery.asStateFlow()
+
+    private val _typeFilter = MutableStateFlow(EntryTypeFilter.ALL)
+    val typeFilter = _typeFilter.asStateFlow()
+
+    private val _categoryFilter = MutableStateFlow<Long?>(null)
+    val categoryFilter = _categoryFilter.asStateFlow()
+
+    val filteredEntries: StateFlow<List<Entry>> = combine(
+        _entries, _searchQuery, _typeFilter, _categoryFilter
+    ) { entries, query, type, category ->
+        val q = query.trim().lowercase()
+        entries.filter { entry ->
+            val matchesQuery = q.isEmpty() || entry.note.lowercase().contains(q)
+            val matchesType = when (type) {
+                EntryTypeFilter.ALL -> true
+                EntryTypeFilter.INCOME -> entry.isIncome
+                EntryTypeFilter.EXPENSE -> entry.isExpense
+            }
+            val matchesCategory = category == null || entry.categoryId == category
+            matchesQuery && matchesType && matchesCategory
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
@@ -112,6 +147,18 @@ class AccountHistoryViewModel @Inject constructor(
 
     fun clearError() {
         _error.value = null
+    }
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun setTypeFilter(filter: EntryTypeFilter) {
+        _typeFilter.value = filter
+    }
+
+    fun setCategoryFilter(categoryId: Long?) {
+        _categoryFilter.value = categoryId
     }
 
     fun monthlyTotal(month: Int): MonthlyTotal? =

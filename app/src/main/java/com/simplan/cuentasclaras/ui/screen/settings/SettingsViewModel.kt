@@ -1,8 +1,10 @@
 package com.simplan.cuentasclaras.ui.screen.settings
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.simplan.cuentasclaras.common.Result
+import com.simplan.cuentasclaras.data.backup.BackupFileManager
 import com.simplan.cuentasclaras.domain.entity.QuickAmount
 import com.simplan.cuentasclaras.domain.entity.Settings
 import com.simplan.cuentasclaras.domain.usecase.quickamount.QuickAmountUseCases
@@ -11,9 +13,6 @@ import com.simplan.cuentasclaras.domain.usecase.settings.SettingsUseCases
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -21,7 +20,8 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val settingsUseCases: SettingsUseCases,
     private val quickAmountUseCases: QuickAmountUseCases,
-    private val lockUseCases: LockUseCases
+    private val lockUseCases: LockUseCases,
+    private val backupFileManager: BackupFileManager
 ) : ViewModel() {
 
     private val _settings = MutableStateFlow<Settings?>(null)
@@ -47,6 +47,9 @@ class SettingsViewModel @Inject constructor(
 
     private val _showQuickAmounts = MutableStateFlow(false)
     val showQuickAmounts = _showQuickAmounts.asStateFlow()
+
+    private val _message = MutableStateFlow<String?>(null)
+    val message = _message.asStateFlow()
 
     init {
         loadSettings()
@@ -83,7 +86,7 @@ class SettingsViewModel @Inject constructor(
         return result
     }
 
-    suspend fun setPin(pin: String): Result<Unit> {
+    suspend fun setPin(pin: String): Result<String> {
         _isLoading.value = true
         val result = lockUseCases.setPin(pin)
         _isLoading.value = false
@@ -155,6 +158,16 @@ class SettingsViewModel @Inject constructor(
         return saveSettings(current.copyWith(themeMode = mode))
     }
 
+    suspend fun updateAutoLockEnabled(enabled: Boolean): Result<Unit> {
+        val current = _settings.value ?: return Result.success(Unit)
+        return saveSettings(current.copyWith(autoLockEnabled = enabled))
+    }
+
+    suspend fun updateAutoLockDelay(minutes: Int): Result<Unit> {
+        val current = _settings.value ?: return Result.success(Unit)
+        return saveSettings(current.copyWith(autoLockDelayMinutes = minutes.coerceAtLeast(0)))
+    }
+
     suspend fun addQuickAmount(amount: QuickAmount): Result<Long> {
         _isLoading.value = true
         val result = quickAmountUseCases.insert(amount)
@@ -209,5 +222,37 @@ class SettingsViewModel @Inject constructor(
 
     fun clearError() {
         _error.value = null
+    }
+
+    fun clearMessage() {
+        _message.value = null
+    }
+
+    fun suggestedBackupFileName(): String = backupFileManager.suggestedFileName()
+
+    suspend fun exportBackupTo(uri: Uri): Result<Unit> {
+        _isLoading.value = true
+        val result = backupFileManager.exportTo(uri)
+        _isLoading.value = false
+        if (result.isError()) {
+            _error.value = result.errorMessage ?: "Error al exportar"
+        } else {
+            _message.value = "Respaldo guardado correctamente"
+        }
+        return result
+    }
+
+    suspend fun importBackupFrom(uri: Uri): Result<Unit> {
+        _isLoading.value = true
+        val result = backupFileManager.importFrom(uri)
+        _isLoading.value = false
+        if (result.isError()) {
+            _error.value = result.errorMessage ?: "Error al importar"
+        } else {
+            loadSettings()
+            loadQuickAmounts()
+            _message.value = "Respaldo restaurado correctamente"
+        }
+        return result
     }
 }

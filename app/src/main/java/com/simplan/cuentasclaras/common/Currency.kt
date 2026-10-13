@@ -31,7 +31,11 @@ data class Currency(
     fun format(cents: Long): String {
         val amount = cents / 100.0
         val formatted = "%.${decimalDigits}f".format(amount).replace('.', ',')
-        val withSymbol = if (symbolOnLeft) "$symbol $formatted" else "$formatted $symbol"
-        return if (spaceBetween) withSymbol.replace("$symbol", "$symbol ").replace("$formatted", "$formatted ") else withSymbol
+        val separator = if (spaceBetween) " " else ""
+        return if (symbolOnLeft) {
+            "$symbol$separator$formatted"
+        } else {
+            "$formatted$separator$symbol"
+        }
     }
 }

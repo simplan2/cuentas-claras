@@ -53,4 +53,10 @@ interface AccountDao {
 
     @Query("SELECT COUNT(*) FROM accounts WHERE isOpen = 1")
     suspend fun countOpen(): Int
+
+    @Query("SELECT * FROM accounts ORDER BY sortOrder ASC")
+    suspend fun getAllSuspend(): List<AccountEntity>
+
+    @Query("DELETE FROM accounts")
+    suspend fun deleteAll(): Int
 }

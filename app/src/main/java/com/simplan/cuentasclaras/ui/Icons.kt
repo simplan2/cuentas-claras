@@ -49,6 +49,9 @@ object Icons {
     fun arrowDropUp(): ImageVector = ImageVector.vectorResource(id = R.drawable.ic_arrow_drop_up)
 
     @Composable
+    fun circles(): ImageVector = ImageVector.vectorResource(id = R.drawable.ic_circles)
+
+    @Composable
     fun check(): ImageVector = ImageVector.vectorResource(id = R.drawable.ic_check)
 
     @Composable

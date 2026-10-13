@@ -15,12 +15,14 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -40,6 +42,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -80,8 +83,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.simplan.cuentasclaras.common.Currency
 import com.simplan.cuentasclaras.common.Money
 import com.simplan.cuentasclaras.domain.entity.Account
+import com.simplan.cuentasclaras.domain.entity.Category
 import com.simplan.cuentasclaras.domain.entity.QuickAmount
 import com.simplan.cuentasclaras.ui.Icons
+import com.simplan.cuentasclaras.ui.theme.LocalHeroColors
+import com.simplan.cuentasclaras.ui.theme.LocalIsDarkTheme
 import kotlinx.coroutines.launch
 
 private const val SAVE_IDLE = "idle"
@@ -108,6 +114,7 @@ fun HomeScreen(
     val amountText by viewModel.amountText.collectAsStateWithLifecycle("")
     val conceptText by viewModel.conceptText.collectAsStateWithLifecycle("")
     val isIncome by viewModel.isIncome.collectAsStateWithLifecycle(true)
+    val categoryId by viewModel.categoryId.collectAsStateWithLifecycle(0L)
 
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
@@ -149,35 +156,11 @@ fun HomeScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
-                ),
-                actions = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .padding(end = 12.dp)
-                            .clip(MaterialTheme.shapes.medium)
-                            .background(MaterialTheme.colorScheme.secondaryContainer)
-                            .clickable(onClick = onNavigateToSettings)
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.settings(),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Ajustes",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
-                }
+                )
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { innerPadding ->
         Box(
             modifier = Modifier
@@ -218,6 +201,8 @@ fun HomeScreen(
                         onAmountChange = { viewModel.setAmountText(it) },
                         conceptText = conceptText,
                         onConceptChange = { viewModel.setConceptText(it) },
+                        categoryId = categoryId,
+                        onCategoryChange = { viewModel.setCategoryId(it) },
                         quickAmounts = quickAmounts,
                         onQuickAmountClick = { viewModel.onQuickAmountClick(it) }
                     )
@@ -245,6 +230,7 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.Center,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .height(50.dp)
                             .clip(MaterialTheme.shapes.medium)
                             .background(pillBackground)
                             .clickable(enabled = !isLoading) {
@@ -302,7 +288,7 @@ fun HomeScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = if (state == SAVE_SUCCESS) "Guardado" else "Guardar",
-                                    fontSize = 14.sp,
+                                    fontSize = 15.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = pillContent
                                 )
@@ -310,31 +296,6 @@ fun HomeScreen(
                         }
                     }
 
-                    // ---------- Vinculo secundario (misma pildora que "Ajustes") ----------
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(MaterialTheme.shapes.medium)
-                            .background(MaterialTheme.colorScheme.secondaryContainer)
-                            .clickable(onClick = onNavigateToAccountManager)
-                            .padding(vertical = 14.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.wallet(),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Administrar cuentas",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
                 } else {
                     // ---------- Sin cuenta activa ----------
                     NoAccountCard(onManageAccounts = onNavigateToAccountManager)
@@ -387,12 +348,21 @@ private fun AccountHeroCard(
     onSwitchAccount: (Long) -> Unit,
     onOpenAccountDetail: () -> Unit
 ) {
-    val dark = isSystemInDarkTheme()
-    val heroBackground = if (dark) {
-        listOf(Color(0xFF0B2F28), Color(0xFF155B46), Color(0xFF1D7B57))
+    val heroColor = LocalHeroColors.current
+    // val dark = LocalIsDarkTheme.current
+    val heroBackground = listOf(heroColor.start, heroColor.mid, heroColor.end)
+    //val dark = isSystemInDarkTheme()
+    /*val heroBackground = if (dark) {
+        listOf(
+            Color(0xFF0B1B2A), // primaryContainer 0xFF0B1B2A
+            Color(0xFF123B43), // verde azulado profundo
+            Color(0xFF0E3A3C)  // surface 0xFF0E3A2E
+        )
     } else {
-        listOf(Color(0xFF0B7A57), Color(0xFF0F9570), Color(0xFF27B383))
-    }
+        listOf(Color(0xFF0B7A57),
+            Color(0xFF0F9570),
+            Color(0xFF27B383))
+    }*/
     val onHero = Color.White
 
     var lastTotalKey by remember { mutableStateOf<String?>(null) }
@@ -422,7 +392,7 @@ private fun AccountHeroCard(
             )
     ) {
         Icon(
-            imageVector = Icons.accountBalanceWallet(),
+            imageVector = Icons.circles(),
             contentDescription = null,
             tint = Color.White.copy(alpha = 0.05f),
             modifier = Modifier
@@ -635,6 +605,7 @@ private fun StatTile(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EntryCard(
     currency: Currency,
@@ -644,6 +615,8 @@ private fun EntryCard(
     onAmountChange: (String) -> Unit,
     conceptText: String,
     onConceptChange: (String) -> Unit,
+    categoryId: Long,
+    onCategoryChange: (Long) -> Unit,
     quickAmounts: List<QuickAmount>,
     onQuickAmountClick: (Long) -> Unit
 ) {
@@ -667,7 +640,7 @@ private fun EntryCard(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = if (isIncome) "Ingreso de dinero" else "Gasto de dinero",
+                text = if (isIncome) "Ingreso de dinero" else "Salida de dinero",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -676,11 +649,12 @@ private fun EntryCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(48.dp)
                     .background(
                         color = MaterialTheme.colorScheme.surfaceContainerHighest,
                         shape = MaterialTheme.shapes.medium
                     )
-                    .padding(4.dp)
+                    .padding(0.dp)
             ) {
                 SegmentButton(
                     modifier = Modifier.weight(1f),
@@ -751,6 +725,29 @@ private fun EntryCard(
                 singleLine = true,
                 colors = fieldColors()
             )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "Categoría",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Category.entries.forEach { category ->
+                    FilterChip(
+                        selected = categoryId == category.id,
+                        onClick = { onCategoryChange(category.id) },
+                        label = { Text(category.label) }
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
@@ -829,12 +826,13 @@ private fun SegmentButton(
                 shape = MaterialTheme.shapes.medium
             )
             .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
+            .padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = text,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             color = if (selected) onSelectedColor else MaterialTheme.colorScheme.onSurfaceVariant
         )

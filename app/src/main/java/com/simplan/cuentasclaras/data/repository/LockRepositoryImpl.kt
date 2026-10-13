@@ -1,170 +1,220 @@
 package com.simplan.cuentasclaras.data.repository
 
 import android.content.Context
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
+import android.content.SharedPreferences
+import android.util.Base64
 import androidx.biometric.BiometricManager
-import androidx.biometric.BiometricPrompt
-import androidx.core.content.ContextCompat
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import com.simplan.cuentasclaras.common.Result
-import com.simplan.cuentasclaras.data.dao.LockDao
-import com.simplan.cuentasclaras.data.entity.LockEntity
 import com.simplan.cuentasclaras.domain.repository.LockRepository
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.map
-import java.security.KeyStore
+import kotlinx.coroutines.flow.callbackFlow
 import java.security.MessageDigest
-import javax.crypto.spec.GCMParameterSpec
-import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
+import java.security.SecureRandom
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.PBEKeySpec
 
 class LockRepositoryImpl(
-    private val lockDao: LockDao,
     private val context: Context
 ) : LockRepository {
 
-    private val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-    private val keyAlias = "cuentas_claras_pin_key"
-    private val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+    private val prefs: SharedPreferences by lazy { createPrefs() }
 
-    init {
-        initKey()
-    }
-
-    private fun initKey() {
-        if (!keyStore.containsAlias(keyAlias)) {
-            keyGenerator.init(KeyGenParameterSpec.Builder(
-                keyAlias,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-            )
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setUserAuthenticationRequired(false)
-                .build())
-            keyGenerator.generateKey()
-        }
-    }
-
-    private fun hashPin(pin: String): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        val hash = digest.digest(pin.toByteArray())
-        return hash.joinToString("") { "%02x".format(it) }
-    }
-
-    private fun encryptPin(pin: String): String {
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        val key = keyStore.getKey(keyAlias, null) as javax.crypto.SecretKey
-        cipher.init(Cipher.ENCRYPT_MODE, key)
-        val encrypted = cipher.doFinal(pin.toByteArray())
-        val iv = cipher.iv
-        return (iv + encrypted).joinToString("") { "%02x".format(it) }
-    }
-
-    private fun decryptPin(encryptedPin: String): String? {
+    private fun createPrefs(): SharedPreferences {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
         return try {
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            val key = keyStore.getKey(keyAlias, null) as javax.crypto.SecretKey
-            val bytes = encryptedPin.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
-            val iv = bytes.copyOfRange(0, 12)
-            val encrypted = bytes.copyOfRange(12, bytes.size)
-            val spec = GCMParameterSpec(128, iv)
-            cipher.init(Cipher.DECRYPT_MODE, key, spec)
-            String(cipher.doFinal(encrypted))
+            buildEncrypted(masterKey)
         } catch (e: Exception) {
-            null
+            // La clave maestra cambió (p. ej. restauración sin los datos del Keystore):
+            // se reinicia el almacén para no dejar la app inutilizable.
+            context.deleteSharedPreferences(PREFS_NAME)
+            buildEncrypted(masterKey)
         }
     }
+
+    private fun buildEncrypted(masterKey: MasterKey): SharedPreferences =
+        EncryptedSharedPreferences.create(
+            context,
+            PREFS_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+
+    private fun String.toBytes(): ByteArray = Base64.decode(this, Base64.NO_WRAP)
+
+    private fun ByteArray.toBase64(): String = Base64.encodeToString(this, Base64.NO_WRAP)
+
+    private fun generateSalt(): ByteArray {
+        val salt = ByteArray(SALT_BYTES)
+        SecureRandom().nextBytes(salt)
+        return salt
+    }
+
+    private fun deriveHash(pin: String, salt: ByteArray): ByteArray {
+        val spec = PBEKeySpec(pin.toCharArray(), salt, ITERATIONS, KEY_LENGTH_BITS)
+        return SecretKeyFactory.getInstance(ALGORITHM).generateSecret(spec).encoded
+    }
+
+    private fun now(): Long = System.currentTimeMillis()
+
+    private fun isLockoutActive(): Boolean = prefs.getLong(KEY_LOCKOUT_UNTIL, 0L) > now()
+
+    /**
+     * Duración del bloqueo según el nivel (bloqueos consecutivos acumulados).
+     * Endurecimiento escalonado: 30 s → 5 min → 30 min.
+     */
+    private fun lockoutMillisFor(level: Int): Long = when {
+        level <= 1 -> LOCKOUT_MILLIS_LEVEL_1
+        level == 2 -> LOCKOUT_MILLIS_LEVEL_2
+        else -> LOCKOUT_MILLIS_LEVEL_3
+    }
+
+    private fun generateRecoveryCode(): String {
+        val random = SecureRandom()
+        val chars = (1..RECOVERY_CODE_LENGTH).map {
+            RECOVERY_ALPHABET[random.nextInt(RECOVERY_ALPHABET.length)]
+        }.joinToString("")
+        return chars.chunked(4).joinToString("-")
+    }
+
+    private fun normalizeRecoveryCode(code: String): String =
+        code.uppercase().filter { it.isLetterOrDigit() }
 
     override suspend fun isLocked(): Result<Boolean> = try {
-        val entity = lockDao.getSuspend()
-        Result.success(entity?.isLocked ?: false)
+        Result.success(prefs.getBoolean(KEY_IS_LOCKED, false))
     } catch (e: Exception) {
         Result.error(e)
     }
 
-    override fun observeLockState(): Flow<Result<Boolean>> = lockDao.get()
-        .map { Result.success(it?.isLocked ?: false) }
-        .catch { emit(Result.error(it)) }
+    override fun observeLockState(): Flow<Result<Boolean>> = callbackFlow {
+        trySend(Result.success(prefs.getBoolean(KEY_IS_LOCKED, false)))
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == KEY_IS_LOCKED) {
+                trySend(Result.success(prefs.getBoolean(KEY_IS_LOCKED, false)))
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
 
     override suspend fun hasPin(): Result<Boolean> = try {
-        val entity = lockDao.getSuspend()
-        Result.success(entity?.pinHash?.isNotEmpty() == true)
+        Result.success(prefs.getString(KEY_PIN_HASH, "").orEmpty().isNotEmpty())
     } catch (e: Exception) {
         Result.error(e)
     }
 
     override suspend fun getPinLength(): Result<Int> = try {
-        val entity = lockDao.getSuspend()
-        val encryptedPin = entity?.pinHash.orEmpty()
-        if (encryptedPin.isEmpty()) {
-            Result.success(0)
-        } else {
-            val pin = decryptPin(encryptedPin)
-            Result.success(pin?.length ?: 0)
-        }
+        Result.success(prefs.getInt(KEY_PIN_LENGTH, 0))
     } catch (e: Exception) {
         Result.error(e)
     }
 
     override suspend fun lock(): Result<Unit> = try {
-        val entity = lockDao.getSuspend() ?: LockEntity()
-        lockDao.insert(entity.copy(isLocked = true))
+        prefs.edit().putBoolean(KEY_IS_LOCKED, true).apply()
         Result.success(Unit)
     } catch (e: Exception) {
         Result.error(e)
     }
 
     override suspend fun unlock(pin: String): Result<Boolean> = try {
-        val entity = lockDao.getSuspend() ?: LockEntity()
-        val storedHash = entity.pinHash
-        val isValid = if (storedHash.isEmpty()) {
-            false
+        if (isLockoutActive()) {
+            Result.success(false)
         } else {
-            val decryptedPin = decryptPin(storedHash)
-            decryptedPin == pin
+            val storedHash = prefs.getString(KEY_PIN_HASH, "").orEmpty()
+            val salt = prefs.getString(KEY_PIN_SALT, "").orEmpty()
+            if (storedHash.isEmpty() || salt.isEmpty()) {
+                Result.success(false)
+            } else {
+                val expected = storedHash.toBytes()
+                val actual = deriveHash(pin, salt.toBytes())
+                val isValid = MessageDigest.isEqual(expected, actual)
+                if (isValid) {
+                    resetFailedAttempts()
+                    prefs.edit()
+                        .putBoolean(KEY_IS_LOCKED, false)
+                        .putLong(KEY_LOCKOUT_UNTIL, 0L)
+                        .apply()
+                } else {
+                    val attempts = prefs.getInt(KEY_FAILED_ATTEMPTS, 0) + 1
+                    val editor = prefs.edit()
+                        .putInt(KEY_FAILED_ATTEMPTS, attempts)
+                        .putLong(KEY_LAST_FAILED_AT, now())
+                    if (attempts % MAX_ATTEMPTS == 0) {
+                        val level = attempts / MAX_ATTEMPTS
+                        editor.putLong(KEY_LOCKOUT_UNTIL, now() + lockoutMillisFor(level))
+                    }
+                    editor.apply()
+                }
+                Result.success(isValid)
+            }
         }
-        if (isValid) {
-            lockDao.insert(entity.copy(isLocked = false, failedAttempts = 0))
-        } else {
-            val newAttempts = entity.failedAttempts + 1
-            lockDao.insert(entity.copy(failedAttempts = newAttempts, lastFailedAt = System.currentTimeMillis()))
-        }
-        Result.success(isValid)
     } catch (e: Exception) {
         Result.error(e)
     }
 
     override suspend fun verifyPin(pin: String): Result<Boolean> = unlock(pin)
 
-    override suspend fun setPin(pin: String): Result<Unit> = try {
-        val entity = lockDao.getSuspend() ?: LockEntity()
-        val encryptedPin = encryptPin(pin)
-        lockDao.insert(entity.copy(pinHash = encryptedPin))
-        Result.success(Unit)
+    override suspend fun verifyRecoveryCode(code: String): Result<Boolean> = try {
+        val storedHash = prefs.getString(KEY_RECOVERY_HASH, "").orEmpty()
+        val salt = prefs.getString(KEY_RECOVERY_SALT, "").orEmpty()
+        if (storedHash.isEmpty() || salt.isEmpty()) {
+            Result.success(false)
+        } else {
+            val expected = storedHash.toBytes()
+            val actual = deriveHash(normalizeRecoveryCode(code), salt.toBytes())
+            Result.success(MessageDigest.isEqual(expected, actual))
+        }
+    } catch (e: Exception) {
+        Result.error(e)
+    }
+
+    override suspend fun setPin(pin: String): Result<String> = try {
+        val salt = generateSalt()
+        val hash = deriveHash(pin, salt)
+
+        val recoveryCode = generateRecoveryCode()
+        val recoverySalt = generateSalt()
+        val recoveryHash = deriveHash(normalizeRecoveryCode(recoveryCode), recoverySalt)
+
+        prefs.edit()
+            .putString(KEY_PIN_SALT, salt.toBase64())
+            .putString(KEY_PIN_HASH, hash.toBase64())
+            .putInt(KEY_PIN_LENGTH, pin.length)
+            .putString(KEY_RECOVERY_SALT, recoverySalt.toBase64())
+            .putString(KEY_RECOVERY_HASH, recoveryHash.toBase64())
+            .putInt(KEY_FAILED_ATTEMPTS, 0)
+            .putLong(KEY_LOCKOUT_UNTIL, 0L)
+            .putBoolean(KEY_IS_LOCKED, false)
+            .apply()
+        Result.success(recoveryCode)
     } catch (e: Exception) {
         Result.error(e)
     }
 
     override suspend fun clearPin(): Result<Unit> = try {
-        val entity = lockDao.getSuspend() ?: LockEntity()
-        lockDao.update(
-            entity.copy(
-                pinHash = "",
-                biometricEnabled = false,
-                isLocked = false,
-                failedAttempts = 0
-            )
-        )
+        prefs.edit()
+            .remove(KEY_PIN_SALT)
+            .remove(KEY_PIN_HASH)
+            .remove(KEY_PIN_LENGTH)
+            .remove(KEY_RECOVERY_SALT)
+            .remove(KEY_RECOVERY_HASH)
+            .putBoolean(KEY_BIOMETRIC, false)
+            .putBoolean(KEY_IS_LOCKED, false)
+            .putInt(KEY_FAILED_ATTEMPTS, 0)
+            .putLong(KEY_LOCKOUT_UNTIL, 0L)
+            .apply()
         Result.success(Unit)
     } catch (e: Exception) {
         Result.error(e)
     }
 
     override suspend fun isBiometricAvailable(): Result<Boolean> = try {
-        val biometricManager = BiometricManager.from(context)
-        val canAuthenticate = biometricManager.canAuthenticate(
+        val canAuthenticate = BiometricManager.from(context).canAuthenticate(
             BiometricManager.Authenticators.BIOMETRIC_STRONG
         ) == BiometricManager.BIOMETRIC_SUCCESS
         Result.success(canAuthenticate)
@@ -173,57 +223,83 @@ class LockRepositoryImpl(
     }
 
     override suspend fun isBiometricEnabled(): Result<Boolean> = try {
-        val entity = lockDao.getSuspend()
-        Result.success(entity?.biometricEnabled == true)
+        Result.success(prefs.getBoolean(KEY_BIOMETRIC, false))
     } catch (e: Exception) {
         Result.error(e)
     }
 
-    override suspend fun authenticateWithBiometric(): Result<Boolean> = Result.error("Biometric authentication must be called from UI thread")
+    override suspend fun authenticateWithBiometric(): Result<Boolean> =
+        Result.error("Biometric authentication must be called from UI thread")
 
     override suspend fun setBiometricEnabled(enabled: Boolean): Result<Unit> = try {
-        val entity = lockDao.getSuspend() ?: LockEntity()
-        lockDao.insert(entity.copy(biometricEnabled = enabled))
-        Result.success(Unit)
-    } catch (e: Exception) {
-        Result.error(e)
-    }
-
-    override suspend fun getAutoLockDelay(): Result<Int> = try {
-        val entity = lockDao.getSuspend() ?: LockEntity()
-        Result.success(entity.autoLockDelayMinutes)
-    } catch (e: Exception) {
-        Result.error(e)
-    }
-
-    override suspend fun setAutoLockDelay(minutes: Int): Result<Unit> = try {
-        val entity = lockDao.getSuspend() ?: LockEntity()
-        lockDao.insert(entity.copy(autoLockDelayMinutes = minutes))
+        prefs.edit().putBoolean(KEY_BIOMETRIC, enabled).apply()
         Result.success(Unit)
     } catch (e: Exception) {
         Result.error(e)
     }
 
     override suspend fun getFailedAttempts(): Result<Int> = try {
-        val entity = lockDao.getSuspend() ?: LockEntity()
-        Result.success(entity.failedAttempts)
+        Result.success(prefs.getInt(KEY_FAILED_ATTEMPTS, 0))
     } catch (e: Exception) {
         Result.error(e)
     }
 
     override suspend fun incrementFailedAttempts(): Result<Unit> = try {
-        val entity = lockDao.getSuspend() ?: LockEntity()
-        lockDao.insert(entity.copy(failedAttempts = entity.failedAttempts + 1, lastFailedAt = System.currentTimeMillis()))
+        val attempts = prefs.getInt(KEY_FAILED_ATTEMPTS, 0) + 1
+        val editor = prefs.edit()
+            .putInt(KEY_FAILED_ATTEMPTS, attempts)
+            .putLong(KEY_LAST_FAILED_AT, now())
+        if (attempts % MAX_ATTEMPTS == 0) {
+            val level = attempts / MAX_ATTEMPTS
+            editor.putLong(KEY_LOCKOUT_UNTIL, now() + lockoutMillisFor(level))
+        }
+        editor.apply()
         Result.success(Unit)
     } catch (e: Exception) {
         Result.error(e)
     }
 
     override suspend fun resetFailedAttempts(): Result<Unit> = try {
-        val entity = lockDao.getSuspend() ?: LockEntity()
-        lockDao.insert(entity.copy(failedAttempts = 0))
+        prefs.edit()
+            .putInt(KEY_FAILED_ATTEMPTS, 0)
+            .putLong(KEY_LOCKOUT_UNTIL, 0L)
+            .apply()
         Result.success(Unit)
     } catch (e: Exception) {
         Result.error(e)
+    }
+
+    override suspend fun getLockoutRemainingMillis(): Result<Long> = try {
+        val remaining = (prefs.getLong(KEY_LOCKOUT_UNTIL, 0L) - now()).coerceAtLeast(0L)
+        Result.success(remaining)
+    } catch (e: Exception) {
+        Result.error(e)
+    }
+
+    companion object {
+        private const val PREFS_NAME = "cuentasclaras_lock"
+        private const val KEY_IS_LOCKED = "is_locked"
+        private const val KEY_PIN_SALT = "pin_salt"
+        private const val KEY_PIN_HASH = "pin_hash"
+        private const val KEY_PIN_LENGTH = "pin_length"
+        private const val KEY_RECOVERY_SALT = "recovery_salt"
+        private const val KEY_RECOVERY_HASH = "recovery_hash"
+        private const val KEY_BIOMETRIC = "biometric_enabled"
+        private const val KEY_FAILED_ATTEMPTS = "failed_attempts"
+        private const val KEY_LAST_FAILED_AT = "last_failed_at"
+        private const val KEY_LOCKOUT_UNTIL = "lockout_until"
+
+        private const val ALGORITHM = "PBKDF2WithHmacSHA256"
+        private const val ITERATIONS = 120_000
+        private const val KEY_LENGTH_BITS = 256
+        private const val SALT_BYTES = 16
+        private const val MAX_ATTEMPTS = 5
+        private const val LOCKOUT_MILLIS_LEVEL_1 = 30_000L
+        private const val LOCKOUT_MILLIS_LEVEL_2 = 5 * 60_000L
+        private const val LOCKOUT_MILLIS_LEVEL_3 = 30 * 60_000L
+
+        // Alfabeto sin caracteres ambiguos (sin 0/O, 1/I/L) para el código de recuperación.
+        private const val RECOVERY_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+        private const val RECOVERY_CODE_LENGTH = 12
     }
 }

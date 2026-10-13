@@ -31,6 +31,14 @@ class MainViewModel @Inject constructor(
     private val _themeMode = MutableStateFlow(Settings.ThemeMode.SYSTEM)
     val themeMode: StateFlow<Settings.ThemeMode> = _themeMode.asStateFlow()
 
+    private val _autoLockEnabled = MutableStateFlow(false)
+    val autoLockEnabled: StateFlow<Boolean> = _autoLockEnabled.asStateFlow()
+
+    private val _autoLockDelayMinutes = MutableStateFlow(5)
+    val autoLockDelayMinutes: StateFlow<Int> = _autoLockDelayMinutes.asStateFlow()
+
+    var initialLockHandled: Boolean = false
+
     // Exponer Flow para CollectAsStateWithLifecycle en Activity
     val observeLockState: Flow<Result<Boolean>>
         get() = lockUseCases.observeLockState()
@@ -53,7 +61,11 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             settingsUseCases.observeSettings().collect { result ->
                 if (result.isSuccess()) {
-                    result.getOrNull()?.let { _themeMode.value = it.themeMode }
+                    result.getOrNull()?.let {
+                        _themeMode.value = it.themeMode
+                        _autoLockEnabled.value = it.autoLockEnabled
+                        _autoLockDelayMinutes.value = it.autoLockDelayMinutes
+                    }
                 }
             }
         }
@@ -64,5 +76,9 @@ class MainViewModel @Inject constructor(
         if (hasPin.isSuccess() && hasPin.getOrNull() == true) {
             lockUseCases.lock()
         }
+    }
+
+    suspend fun lock() {
+        lockUseCases.lock()
     }
 }

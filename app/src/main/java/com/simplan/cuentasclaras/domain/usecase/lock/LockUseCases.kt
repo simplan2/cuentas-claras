@@ -26,7 +26,7 @@ sealed interface UnlockWithPinUseCase {
 }
 
 sealed interface SetPinUseCase {
-    suspend operator fun invoke(pin: String): Result<Unit>
+    suspend operator fun invoke(pin: String): Result<String>
 }
 
 sealed interface ClearPinUseCase {
@@ -35,6 +35,10 @@ sealed interface ClearPinUseCase {
 
 sealed interface VerifyPinUseCase {
     suspend operator fun invoke(pin: String): Result<Boolean>
+}
+
+sealed interface VerifyRecoveryCodeUseCase {
+    suspend operator fun invoke(code: String): Result<Boolean>
 }
 
 sealed interface IsBiometricAvailableUseCase {
@@ -53,12 +57,16 @@ sealed interface SetBiometricEnabledUseCase {
     suspend operator fun invoke(enabled: Boolean): Result<Unit>
 }
 
-sealed interface GetAutoLockDelayUseCase {
+sealed interface GetFailedAttemptsUseCase {
     suspend operator fun invoke(): Result<Int>
 }
 
-sealed interface SetAutoLockDelayUseCase {
-    suspend operator fun invoke(minutes: Int): Result<Unit>
+sealed interface ResetFailedAttemptsUseCase {
+    suspend operator fun invoke(): Result<Unit>
+}
+
+sealed interface GetLockoutRemainingUseCase {
+    suspend operator fun invoke(): Result<Long>
 }
 
 interface LockUseCases {
@@ -69,17 +77,16 @@ interface LockUseCases {
     suspend fun lock(): Result<Unit>
     suspend fun unlock(pin: String): Result<Boolean>
     suspend fun verifyPin(pin: String): Result<Boolean>
-    suspend fun setPin(pin: String): Result<Unit>
+    suspend fun setPin(pin: String): Result<String>
     suspend fun clearPin(): Result<Unit>
+    suspend fun verifyRecoveryCode(code: String): Result<Boolean>
     suspend fun isBiometricAvailable(): Result<Boolean>
     suspend fun isBiometricEnabled(): Result<Boolean>
     suspend fun authenticateWithBiometric(): Result<Boolean>
     suspend fun setBiometricEnabled(enabled: Boolean): Result<Unit>
-    suspend fun getAutoLockDelay(): Result<Int>
-    suspend fun setAutoLockDelay(minutes: Int): Result<Unit>
     suspend fun getFailedAttempts(): Result<Int>
-    suspend fun incrementFailedAttempts(): Result<Unit>
     suspend fun resetFailedAttempts(): Result<Unit>
+    suspend fun getLockoutRemainingMillis(): Result<Long>
 }
 
 class IsLockedUseCaseImpl(private val repository: LockRepository) : IsLockedUseCase {
@@ -104,7 +111,7 @@ class UnlockWithPinUseCaseImpl(private val repository: LockRepository) : UnlockW
 }
 
 class SetPinUseCaseImpl(private val repository: LockRepository) : SetPinUseCase {
-    override suspend fun invoke(pin: String): Result<Unit> = repository.setPin(pin)
+    override suspend fun invoke(pin: String): Result<String> = repository.setPin(pin)
 }
 
 class ClearPinUseCaseImpl(private val repository: LockRepository) : ClearPinUseCase {
@@ -113,6 +120,10 @@ class ClearPinUseCaseImpl(private val repository: LockRepository) : ClearPinUseC
 
 class VerifyPinUseCaseImpl(private val repository: LockRepository) : VerifyPinUseCase {
     override suspend fun invoke(pin: String): Result<Boolean> = repository.verifyPin(pin)
+}
+
+class VerifyRecoveryCodeUseCaseImpl(private val repository: LockRepository) : VerifyRecoveryCodeUseCase {
+    override suspend fun invoke(code: String): Result<Boolean> = repository.verifyRecoveryCode(code)
 }
 
 class IsBiometricAvailableUseCaseImpl(private val repository: LockRepository) : IsBiometricAvailableUseCase {
@@ -131,12 +142,16 @@ class SetBiometricEnabledUseCaseImpl(private val repository: LockRepository) : S
     override suspend fun invoke(enabled: Boolean): Result<Unit> = repository.setBiometricEnabled(enabled)
 }
 
-class GetAutoLockDelayUseCaseImpl(private val repository: LockRepository) : GetAutoLockDelayUseCase {
-    override suspend fun invoke(): Result<Int> = repository.getAutoLockDelay()
+class GetFailedAttemptsUseCaseImpl(private val repository: LockRepository) : GetFailedAttemptsUseCase {
+    override suspend fun invoke(): Result<Int> = repository.getFailedAttempts()
 }
 
-class SetAutoLockDelayUseCaseImpl(private val repository: LockRepository) : SetAutoLockDelayUseCase {
-    override suspend fun invoke(minutes: Int): Result<Unit> = repository.setAutoLockDelay(minutes)
+class ResetFailedAttemptsUseCaseImpl(private val repository: LockRepository) : ResetFailedAttemptsUseCase {
+    override suspend fun invoke(): Result<Unit> = repository.resetFailedAttempts()
+}
+
+class GetLockoutRemainingUseCaseImpl(private val repository: LockRepository) : GetLockoutRemainingUseCase {
+    override suspend fun invoke(): Result<Long> = repository.getLockoutRemainingMillis()
 }
 
 class LockUseCasesImpl(
@@ -148,12 +163,14 @@ class LockUseCasesImpl(
     private val setPinUseCase: SetPinUseCase,
     private val clearPinUseCase: ClearPinUseCase,
     private val verifyPinUseCase: VerifyPinUseCase,
+    private val verifyRecoveryCodeUseCase: VerifyRecoveryCodeUseCase,
     private val isBiometricAvailableUseCase: IsBiometricAvailableUseCase,
     private val isBiometricEnabledUseCase: IsBiometricEnabledUseCase,
     private val authenticateWithBiometricUseCase: AuthenticateWithBiometricUseCase,
     private val setBiometricEnabledUseCase: SetBiometricEnabledUseCase,
-    private val getAutoLockDelayUseCase: GetAutoLockDelayUseCase,
-    private val setAutoLockDelayUseCase: SetAutoLockDelayUseCase
+    private val getFailedAttemptsUseCase: GetFailedAttemptsUseCase,
+    private val resetFailedAttemptsUseCase: ResetFailedAttemptsUseCase,
+    private val getLockoutRemainingUseCase: GetLockoutRemainingUseCase
 ) : LockUseCases {
 
     override suspend fun isLocked(): Result<Boolean> = isLockedUseCase()
@@ -163,15 +180,14 @@ class LockUseCasesImpl(
     override suspend fun lock(): Result<Unit> = lockUseCase()
     override suspend fun unlock(pin: String): Result<Boolean> = unlockWithPinUseCase(pin)
     override suspend fun verifyPin(pin: String): Result<Boolean> = verifyPinUseCase(pin)
-    override suspend fun setPin(pin: String): Result<Unit> = setPinUseCase(pin)
+    override suspend fun setPin(pin: String): Result<String> = setPinUseCase(pin)
     override suspend fun clearPin(): Result<Unit> = clearPinUseCase()
+    override suspend fun verifyRecoveryCode(code: String): Result<Boolean> = verifyRecoveryCodeUseCase(code)
     override suspend fun isBiometricAvailable(): Result<Boolean> = isBiometricAvailableUseCase()
     override suspend fun isBiometricEnabled(): Result<Boolean> = isBiometricEnabledUseCase()
     override suspend fun authenticateWithBiometric(): Result<Boolean> = authenticateWithBiometricUseCase()
     override suspend fun setBiometricEnabled(enabled: Boolean): Result<Unit> = setBiometricEnabledUseCase(enabled)
-    override suspend fun getAutoLockDelay(): Result<Int> = getAutoLockDelayUseCase()
-    override suspend fun setAutoLockDelay(minutes: Int): Result<Unit> = setAutoLockDelayUseCase(minutes)
-    override suspend fun getFailedAttempts(): Result<Int> = Result.error("Not implemented")
-    override suspend fun incrementFailedAttempts(): Result<Unit> = Result.error("Not implemented")
-    override suspend fun resetFailedAttempts(): Result<Unit> = Result.error("Not implemented")
+    override suspend fun getFailedAttempts(): Result<Int> = getFailedAttemptsUseCase()
+    override suspend fun resetFailedAttempts(): Result<Unit> = resetFailedAttemptsUseCase()
+    override suspend fun getLockoutRemainingMillis(): Result<Long> = getLockoutRemainingUseCase()
 }

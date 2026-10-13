@@ -22,8 +22,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "cuentasclaras.db"
         )
-            .fallbackToDestructiveMigration()
-            .allowMainThreadQueries()
+            .addMigrations(AppDatabase.MIGRATION_1_2)
             .build()
     }
 }

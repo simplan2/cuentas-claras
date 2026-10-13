@@ -6,6 +6,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
+
+val LocalIsDarkTheme = staticCompositionLocalOf { false }
+val LocalHeroColors = staticCompositionLocalOf { HeroDark }
 
 private val AppShapes = Shapes(
     extraSmall = RoundedCornerShape(6.dp),
@@ -21,11 +26,18 @@ fun CuentasClarasTheme(
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) BrandDark else BrandLight
+    val heroColors = if (darkTheme) HeroDark else HeroLight
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        shapes = AppShapes,
-        content = content
-    )
+    CompositionLocalProvider(
+        LocalIsDarkTheme provides darkTheme,
+        LocalHeroColors provides heroColors
+    ){
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            shapes = AppShapes,
+            content = content
+        )
+    }
+
 }

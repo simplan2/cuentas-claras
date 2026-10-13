@@ -1,5 +1,8 @@
 package com.simplan.cuentasclaras.ui.screen.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,7 +14,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -25,6 +30,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -44,14 +50,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.simplan.cuentasclaras.BuildConfig
+import com.simplan.cuentasclaras.R
 import com.simplan.cuentasclaras.common.Currency
 import com.simplan.cuentasclaras.common.Money
 import com.simplan.cuentasclaras.domain.entity.QuickAmount
@@ -62,13 +74,13 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    onNavigateBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val quickAmounts by viewModel.quickAmounts.collectAsStateWithLifecycle(emptyList())
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle(false)
     val error by viewModel.error.collectAsStateWithLifecycle(null)
+    val message by viewModel.message.collectAsStateWithLifecycle(null)
     val showQuickAmounts by viewModel.showQuickAmounts.collectAsStateWithLifecycle(false)
     val hasPin by viewModel.hasPin.collectAsStateWithLifecycle(false)
     val biometricAvailable by viewModel.biometricAvailable.collectAsStateWithLifecycle(false)
@@ -94,9 +106,30 @@ fun SettingsScreen(
     var maxAccountsInput by remember { mutableStateOf("10") }
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showAutoLockDelayDialog by remember { mutableStateOf(false) }
+    var showImportConfirm by remember { mutableStateOf(false) }
+    var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var showRecoveryCodeDialog by remember { mutableStateOf(false) }
+    var recoveryCodeToShow by remember { mutableStateOf<String?>(null) }
 
     val currency = settings?.currency ?: Currency.PEN
     val themeMode = settings?.themeMode ?: Settings.ThemeMode.SYSTEM
+
+    val exportBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            scope.launch { viewModel.exportBackupTo(uri) }
+        }
+    }
+    val importBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            pendingImportUri = uri
+            showImportConfirm = true
+        }
+    }
 
     // Mostrar errores por snackbar
     LaunchedEffect(error) {
@@ -106,22 +139,26 @@ fun SettingsScreen(
         }
     }
 
+    // Mostrar mensajes de éxito por snackbar
+    LaunchedEffect(message) {
+        message?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearMessage()
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Ajustes") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.arrowBack(), contentDescription = "Volver")
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { innerPadding ->
         Box(
             modifier = Modifier
@@ -160,29 +197,6 @@ fun SettingsScreen(
                             Icon(
                                 Icons.chevronRight(),
                                 contentDescription = "Cambiar moneda",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        HorizontalDivider()
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text("Idioma", fontSize = 16.sp)
-                                Text(
-                                    text = "Sistema",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Icon(
-                                Icons.language(),
-                                contentDescription = "Idioma",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -344,6 +358,63 @@ fun SettingsScreen(
                                 enabled = hasPin && biometricAvailable
                             )
                         }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Bloqueo automático", fontSize = 16.sp)
+                                Text(
+                                    text = if (hasPin)
+                                        "Pide el PIN al volver a la app"
+                                    else
+                                        "Configura un PIN primero",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = settings?.autoLockEnabled == true,
+                                onCheckedChange = { enabled ->
+                                    scope.launch { viewModel.updateAutoLockEnabled(enabled) }
+                                },
+                                enabled = hasPin
+                            )
+                        }
+
+                        if (settings?.autoLockEnabled == true) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            HorizontalDivider()
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showAutoLockDelayDialog = true },
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Bloquear tras", fontSize = 16.sp)
+                                    Text(
+                                        text = autoLockDelayLabel(settings?.autoLockDelayMinutes ?: 0),
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Icon(
+                                    Icons.chevronRight(),
+                                    contentDescription = "Cambiar tiempo de bloqueo",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -491,6 +562,86 @@ fun SettingsScreen(
                                 }
                             }
                         }
+                    }
+                }
+
+                // ---------- Respaldo ----------
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Respaldo", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = "Guarda o restaura todas tus cuentas y movimientos en un archivo JSON",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                exportBackupLauncher.launch(viewModel.suggestedBackupFileName())
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isLoading
+                        ) {
+                            Text("Exportar respaldo")
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = {
+                                importBackupLauncher.launch(arrayOf("application/json"))
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isLoading
+                        ) {
+                            Text("Importar respaldo")
+                        }
+                    }
+                }
+
+                // ---------- Acerca de ----------
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Acerca de", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Image(
+                                painter = painterResource(id = R.drawable.ic_app_logo),
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Cuentas Claras",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Versión ${BuildConfig.VERSION_NAME} " +
+                                        "(build ${BuildConfig.VERSION_CODE})",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider()
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Registra tus ingresos y gastos de forma simple. " +
+                                "Tus datos se guardan solo en este dispositivo.",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "© 2026 Cuentas Claras",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             }
@@ -742,6 +893,8 @@ fun SettingsScreen(
                                     val result = viewModel.setPin(newPin)
                                     if (result.isSuccess()) {
                                         showPinDialog = false
+                                        recoveryCodeToShow = result.getOrNull()
+                                        showRecoveryCodeDialog = true
                                     }
                                 }
                             }
@@ -755,6 +908,50 @@ fun SettingsScreen(
             dismissButton = {
                 Button(onClick = { showPinDialog = false }) {
                     Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // ---------- Diálogo: código de recuperación (se muestra una sola vez) ----------
+    if (showRecoveryCodeDialog) {
+        val clipboard = LocalClipboardManager.current
+        AlertDialog(
+            onDismissRequest = { showRecoveryCodeDialog = false },
+            title = { Text("Código de recuperación") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Guarda este código en un lugar seguro. Es la única forma de " +
+                            "recuperar el acceso si olvidas tu PIN. No se volverá a mostrar.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = recoveryCodeToShow.orEmpty(),
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    TextButton(
+                        onClick = {
+                            recoveryCodeToShow?.let {
+                                clipboard.setText(AnnotatedString(it))
+                            }
+                        }
+                    ) {
+                        Text("Copiar código")
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showRecoveryCodeDialog = false }) {
+                    Text("Ya lo guardé")
                 }
             }
         )
@@ -954,6 +1151,103 @@ fun SettingsScreen(
             }
         )
     }
+
+    // ---------- Diálogo tiempo de bloqueo ----------
+    if (showAutoLockDelayDialog) {
+        val options = listOf(0 to "Inmediato", 1 to "1 minuto", 5 to "5 minutos", 15 to "15 minutos", 30 to "30 minutos")
+        val current = settings?.autoLockDelayMinutes ?: 0
+        AlertDialog(
+            onDismissRequest = { showAutoLockDelayDialog = false },
+            title = { Text("Bloquear tras") },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    options.forEach { (minutes, label) ->
+                        val selected = minutes == current
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    scope.launch {
+                                        viewModel.updateAutoLockDelay(minutes)
+                                        showAutoLockDelayDialog = false
+                                    }
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = label,
+                                    fontSize = 15.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                            if (selected) {
+                                Icon(
+                                    Icons.check(),
+                                    contentDescription = "Seleccionado",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAutoLockDelayDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // ---------- Confirmar importación de respaldo ----------
+    if (showImportConfirm) {
+        AlertDialog(
+            onDismissRequest = {
+                showImportConfirm = false
+                pendingImportUri = null
+            },
+            title = { Text("Importar respaldo") },
+            text = {
+                Text(
+                    "Se reemplazarán TODAS tus cuentas y movimientos actuales por los del " +
+                        "archivo seleccionado. Esta acción no se puede deshacer.",
+                    modifier = Modifier.padding(8.dp)
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val uri = pendingImportUri
+                        showImportConfirm = false
+                        pendingImportUri = null
+                        if (uri != null) {
+                            scope.launch { viewModel.importBackupFrom(uri) }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text("Reemplazar", color = Color.White)
+                }
+            },
+            dismissButton = {
+                Button(onClick = {
+                    showImportConfirm = false
+                    pendingImportUri = null
+                }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+}
+
+private fun autoLockDelayLabel(minutes: Int): String = when (minutes) {
+    0 -> "Inmediato"
+    1 -> "1 minuto"
+    60 -> "1 hora"
+    else -> "$minutes minutos"
 }
 
 private fun themeModeLabel(mode: Settings.ThemeMode): String = when (mode) {

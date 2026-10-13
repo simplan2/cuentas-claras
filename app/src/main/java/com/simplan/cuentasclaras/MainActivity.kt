@@ -32,9 +32,17 @@ class MainActivity : FragmentActivity() {
 
     private val mainViewModel: MainViewModel by viewModels()
 
+    private var backgroundedAt: Long = 0L
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (!mainViewModel.initialLockHandled) {
+            mainViewModel.initialLockHandled = true
+            lifecycleScope.launch {
+                mainViewModel.lockIfPinConfigured()
+            }
+        }
         setContent {
             val themeMode by mainViewModel.themeMode
                 .collectAsStateWithLifecycle(initialValue = Settings.ThemeMode.SYSTEM)
@@ -57,11 +65,34 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        val enabled = mainViewModel.autoLockEnabled.value
+        val delay = mainViewModel.autoLockDelayMinutes.value
+        if (enabled && backgroundedAt > 0L) {
+            val elapsed = System.currentTimeMillis() - backgroundedAt
+            if (delay <= 0 || elapsed >= delay * 60_000L) {
+                lifecycleScope.launch {
+                    mainViewModel.lock()
+                }
+            }
+        }
+        backgroundedAt = 0L
+    }
+
     override fun onStop() {
         super.onStop()
         if (!isChangingConfigurations) {
-            lifecycleScope.launch {
-                mainViewModel.lockIfPinConfigured()
+            val enabled = mainViewModel.autoLockEnabled.value
+            val delay = mainViewModel.autoLockDelayMinutes.value
+            if (enabled) {
+                if (delay <= 0) {
+                    lifecycleScope.launch {
+                        mainViewModel.lock()
+                    }
+                } else {
+                    backgroundedAt = System.currentTimeMillis()
+                }
             }
         }
     }

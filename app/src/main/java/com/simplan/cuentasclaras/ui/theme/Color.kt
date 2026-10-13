@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.Color
 val BrandDark = darkColorScheme(
     primary = Color(0xFF35C995),
     onPrimary = Color(0xFF06241A),
-    primaryContainer = Color(0xFF0E3A2E),
+    primaryContainer = Color(0xFF0E383A),
     onPrimaryContainer = Color(0xFFB7F5DF),
     secondary = Color(0xFF9FB0C4),
     onSecondary = Color(0xFF1B2733),
@@ -36,14 +36,14 @@ val BrandDark = darkColorScheme(
     surfaceContainerHighest = Color(0xFF142A3C),
     inverseSurface = Color(0xFFF1F5F9),
     inverseOnSurface = Color(0xFF06111C),
-    inversePrimary = Color(0xFF087F68)
+    inversePrimary = Color(0xFF087F68),
 )
 
 val BrandLight = lightColorScheme(
     primary = Color(0xFF089B74),
     onPrimary = Color(0xFFFFFFFF),
     primaryContainer = Color(0xFFBFEDDF),
-    onPrimaryContainer = Color(0xFF00382A),
+    onPrimaryContainer = Color(0xFF00343A),
     secondary = Color(0xFF52665F),
     onSecondary = Color(0xFFFFFFFF),
     secondaryContainer = Color(0xFFD5E4DD),
@@ -71,5 +71,6 @@ val BrandLight = lightColorScheme(
     surfaceContainerHighest = Color(0xFFE5EBF1),
     inverseSurface = Color(0xFF303640),
     inverseOnSurface = Color(0xFFEDF1F7),
-    inversePrimary = Color(0xFF089B74)
+    inversePrimary = Color(0xFF089B74),
+
 )

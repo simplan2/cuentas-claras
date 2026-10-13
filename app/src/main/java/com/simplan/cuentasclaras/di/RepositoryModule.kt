@@ -2,16 +2,17 @@ package com.simplan.cuentasclaras.di
 
 import com.simplan.cuentasclaras.data.dao.AccountDao
 import com.simplan.cuentasclaras.data.dao.EntryDao
-import com.simplan.cuentasclaras.data.dao.LockDao
 import com.simplan.cuentasclaras.data.dao.QuickAmountDao
 import com.simplan.cuentasclaras.data.dao.SettingsDao
 import com.simplan.cuentasclaras.data.database.AppDatabase
 import com.simplan.cuentasclaras.data.repository.AccountRepositoryImpl
+import com.simplan.cuentasclaras.data.repository.BackupRepositoryImpl
 import com.simplan.cuentasclaras.data.repository.EntryRepositoryImpl
 import com.simplan.cuentasclaras.data.repository.LockRepositoryImpl
 import com.simplan.cuentasclaras.data.repository.QuickAmountRepositoryImpl
 import com.simplan.cuentasclaras.data.repository.SettingsRepositoryImpl
 import com.simplan.cuentasclaras.domain.repository.AccountRepository
+import com.simplan.cuentasclaras.domain.repository.BackupRepository
 import com.simplan.cuentasclaras.domain.repository.EntryRepository
 import com.simplan.cuentasclaras.domain.repository.LockRepository
 import com.simplan.cuentasclaras.domain.repository.QuickAmountRepository
@@ -45,10 +46,6 @@ object RepositoryModule {
 
     @Provides
     @Singleton
-    fun provideLockDao(database: AppDatabase): LockDao = database.lockDao()
-
-    @Provides
-    @Singleton
     fun provideAccountRepository(dao: AccountDao): AccountRepository =
         AccountRepositoryImpl(dao)
 
@@ -69,6 +66,22 @@ object RepositoryModule {
 
     @Provides
     @Singleton
-    fun provideLockRepository(dao: LockDao, @ApplicationContext context: android.content.Context): LockRepository =
-        LockRepositoryImpl(dao, context)
+    fun provideLockRepository(@ApplicationContext context: android.content.Context): LockRepository =
+        LockRepositoryImpl(context)
+
+    @Provides
+    @Singleton
+    fun provideBackupRepository(
+        database: AppDatabase,
+        accountDao: AccountDao,
+        entryDao: EntryDao,
+        quickAmountDao: QuickAmountDao,
+        settingsDao: SettingsDao
+    ): BackupRepository = BackupRepositoryImpl(
+        database,
+        accountDao,
+        entryDao,
+        quickAmountDao,
+        settingsDao
+    )
 }

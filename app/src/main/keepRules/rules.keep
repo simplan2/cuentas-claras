@@ -4,9 +4,21 @@
 # For more details, see
 #   https://d.android.com/r/tools/r8/keep-rules
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# --- kotlinx.serialization ---
+-keepattributes *Annotation*, InnerClasses, Signature, RuntimeVisibleAnnotations
+-dontnote kotlinx.serialization.**
+
+# Generated serializers
+-keepclassmembers class **$$serializer {
+    *;
+}
+-keepclasseswithmembers class com.simplan.cuentasclaras.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+
+# Domain entity models used for backup payload (de)serialization
+-keep class com.simplan.cuentasclaras.domain.entity.** { *; }
+-keep,includedescriptorclasses class com.simplan.cuentasclaras.domain.entity.**$$serializer { *; }
+
+# --- Tink / security-crypto (compile-only annotations not packaged) ---
+-dontwarn com.google.errorprone.annotations.**

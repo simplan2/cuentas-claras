@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -65,6 +66,7 @@ fun AccountManagerScreen(
     val accounts by viewModel.accounts.collectAsStateWithLifecycle(emptyList())
     val defaultAccountId by viewModel.defaultAccountId.collectAsStateWithLifecycle(0L)
     val maxOpenAccounts by viewModel.maxOpenAccounts.collectAsStateWithLifecycle(10)
+    val defaultCurrencyCode by viewModel.defaultCurrencyCode.collectAsStateWithLifecycle("PEN")
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle(false)
     val error by viewModel.error.collectAsStateWithLifecycle(null)
 
@@ -95,21 +97,14 @@ fun AccountManagerScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Administrar cuentas") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateToHome) {
-                        Icon(
-                            imageVector = Icons.arrowBack(),
-                            contentDescription = "Volver al inicio"
-                        )
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -218,6 +213,7 @@ fun AccountManagerScreen(
     if (showCreateDialog) {
         CreateAccountDialog(
             canCreate = canCreate,
+            defaultCurrencyCode = defaultCurrencyCode,
             onDismiss = { showCreateDialog = false },
             onCreate = { name, currencyCode ->
                 scope.launch {
@@ -474,11 +470,12 @@ private fun ClosedAccountCard(
 @Composable
 private fun CreateAccountDialog(
     canCreate: Boolean,
+    defaultCurrencyCode: String,
     onDismiss: () -> Unit,
     onCreate: (name: String, currencyCode: String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
-    var currencyCode by remember { mutableStateOf("PEN") }
+    var currencyCode by remember { mutableStateOf(defaultCurrencyCode) }
 
     AlertDialog(
         onDismissRequest = onDismiss,

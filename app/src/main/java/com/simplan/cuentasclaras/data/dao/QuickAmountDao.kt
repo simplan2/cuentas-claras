@@ -47,4 +47,10 @@ interface QuickAmountDao {
 
     @Query("UPDATE quick_amounts SET sortOrder = :sortOrder WHERE id = :id")
     suspend fun updateSortOrder(id: Long, sortOrder: Int): Int
+
+    @Query("SELECT * FROM quick_amounts ORDER BY sortOrder ASC")
+    suspend fun getAllSuspend(): List<QuickAmountEntity>
+
+    @Query("DELETE FROM quick_amounts")
+    suspend fun deleteAll(): Int
 }

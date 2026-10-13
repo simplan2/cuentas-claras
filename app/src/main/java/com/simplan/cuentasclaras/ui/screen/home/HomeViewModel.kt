@@ -62,6 +62,9 @@ class HomeViewModel @Inject constructor(
     private val _isIncome = MutableStateFlow(true)
     val isIncome = _isIncome.asStateFlow()
 
+    private val _categoryId = MutableStateFlow(0L)
+    val categoryId = _categoryId.asStateFlow()
+
     private val _justSaved = MutableStateFlow(false)
     val justSaved = _justSaved.asStateFlow()
 
@@ -136,6 +139,10 @@ class HomeViewModel @Inject constructor(
         _isIncome.value = isIncome
     }
 
+    fun setCategoryId(categoryId: Long) {
+        _categoryId.value = categoryId
+    }
+
     fun onQuickAmountClick(amountCents: Long) {
         val currency = _account.value?.currency ?: com.simplan.cuentasclaras.common.Currency.PEN
         _amountText.value = Money.format(amountCents, currency)
@@ -171,6 +178,7 @@ class HomeViewModel @Inject constructor(
 
         val entry = Entry(
             accountId = account.id,
+            categoryId = _categoryId.value,
             amountCents = amountCents,
             type = if (_isIncome.value) Entry.EntryType.INCOME else Entry.EntryType.EXPENSE,
             note = conceptText
@@ -185,6 +193,7 @@ class HomeViewModel @Inject constructor(
             }
             _amountText.value = ""
             _conceptText.value = ""
+            _categoryId.value = 0L
             loadAccountData(account.id)
         } else {
             _error.value = result.errorMessage ?: "Error al guardar"

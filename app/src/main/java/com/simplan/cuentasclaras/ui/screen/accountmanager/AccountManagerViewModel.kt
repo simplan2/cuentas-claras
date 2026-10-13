@@ -27,6 +27,9 @@ class AccountManagerViewModel @Inject constructor(
     private val _defaultAccountId = MutableStateFlow(0L)
     val defaultAccountId = _defaultAccountId.asStateFlow()
 
+    private val _defaultCurrencyCode = MutableStateFlow("PEN")
+    val defaultCurrencyCode = _defaultCurrencyCode.asStateFlow()
+
     private val _maxOpenAccounts = MutableStateFlow(10)
     val maxOpenAccounts = _maxOpenAccounts.asStateFlow()
 
@@ -57,6 +60,7 @@ class AccountManagerViewModel @Inject constructor(
             val settingsResult = settingsUseCases.getSettings()
             val settings = settingsResult.getOrNull()
             _maxOpenAccounts.value = (settings?.maxOpenAccounts ?: 10).coerceAtLeast(1)
+            _defaultCurrencyCode.value = settings?.currencyCode ?: "PEN"
             _defaultAccountId.value = accounts
                 .firstOrNull { it.isOpen && it.isDefault }
                 ?.id

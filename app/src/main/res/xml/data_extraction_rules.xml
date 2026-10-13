@@ -1,20 +1,11 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
--->
+<?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <!-- El PIN y datos de bloqueo viven en EncryptedSharedPreferences y NO se
+             respaldan (dependen del Keystore, que no se transfiere entre equipos). -->
+        <exclude domain="sharedpref" path="cuentasclaras_lock.xml" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="sharedpref" path="cuentasclaras_lock.xml" />
     </device-transfer>
-    -->
-
 </data-extraction-rules>
